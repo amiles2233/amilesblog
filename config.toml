@@ -24,7 +24,7 @@ relativeurls=true
     url = "http://linkedin.com/in/aaronrmiles"
 
 [params]
-    description = "A website built through Hugo and blogdown."
+    description = "My analytics playground."
 
     # options for highlight.js (version, additional languages, and theme)
     highlightjsVersion = "9.11.0"
