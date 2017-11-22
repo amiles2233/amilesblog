@@ -1,0 +1,62 @@
+---
+title: Are Lonzo Ball's Assists Being Inflated?
+author: Aaron Miles
+date: '2017-11-22'
+slug: are-lonzo-ball-s-assists-being-inflated
+categories:
+  - Sports
+  - Basketball
+tags:
+  - nba
+  - viz
+---
+
+
+
+<p>Yesterday, I saw <a href="https://twitter.com/Rachel__Nichols/status/933157793569402880">this video</a> from Rachel Nichols’ The Jump showing some instances where Lonzo Ball was credited with assists that he shouldn’t have been. Given the Lakers investment in Lonzo, are we to conclude that they are fudging up his assist numbers in order to increase Ball’s hype? Or are these just a few egregious mistakes? A look at the data will help us find out.</p>
+<p>To test this, I pulled game logs from the <a href="https://api.stattleship.com/">Stattleship API</a> and compared Lonzo Ball’s assists at home games vs away games. If the Lakers are systematically crediting Ball with unearned assists, we should see his assist average at home games be higher than his average at away games.</p>
+<p>First, I pull the game logs from the API, and do some quick merging</p>
+<pre class="r"><code>library(plyr)
+library(tidyverse)
+library(stattleshipR)
+library(ggbeeswarm)
+library(ggrepel)</code></pre>
+<pre class="r"><code>gmloglist1718 &lt;- ss_get_result(sport=&quot;basketball&quot;,
+                               league=&quot;nba&quot;,
+                               ep=&quot;game_logs&quot;,
+                               query = list(season_id=&quot;nba-2017-2018&quot;,
+                                            status=&quot;ended&quot;,
+                                            intervaltype=&quot;regularseason&quot;,
+                                            per_page=40),
+                               walk=TRUE,
+                               verbose = TRUE)</code></pre>
+<pre class="r"><code># Game Log Data Frame
+gl &lt;- ldply(gmloglist1718, function(x) x$game_logs) %&gt;%
+  filter(game_played==TRUE) %&gt;%
+  select(id, team_id, game_id, player_id, is_home_team, assists, triple_double) %&gt;%
+  distinct()
+
+# Player Data Frame
+pl &lt;- ldply(gmloglist1718, function(x) x$players) %&gt;%
+  select(id, name) %&gt;%
+  rename(player=name) %&gt;%
+  distinct()
+
+# Team Data Frame
+tm &lt;- ldply(gmloglist1718, function(x) x$teams) %&gt;%
+  select(id, name, nickname, slug) %&gt;%
+  rename(team=name) %&gt;%
+  distinct()
+
+# Join Together
+gl &lt;- gl %&gt;%
+  left_join(pl, by=c(&quot;player_id&quot;=&quot;id&quot;)) %&gt;%
+  left_join(tm, by=c(&quot;team_id&quot;=&quot;id&quot;))</code></pre>
+<p>Now that the data is in order, let’s look at Ball’s home and away assist average to see if we find any major differences.</p>
+<p><img src="/post/2017-11-22-are-lonzo-ball-s-assists-being-inflated_files/figure-html/unnamed-chunk-6-1.png" width="672" /></p>
+<p>The averages look about the same , but averages can hide a lot of variation. Let’s plot out his assists for each game.</p>
+<p><img src="/post/2017-11-22-are-lonzo-ball-s-assists-being-inflated_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
+<p>Again, not much here to suggest that the Lakers are systematically pumping up his assist numbers. As a further check, let’s look at how his home and away assist averages compare to those of the rest of the league to see if his numbers stand out.</p>
+<p><img src="/post/2017-11-22-are-lonzo-ball-s-assists-being-inflated_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
+<p>Ball ends up smack-dab in the middle, there are players at his level with better APG at home, and players with better APG away, so he doesn’t stand out by this metric at all.</p>
+<p>So far, it’s tough to conclude that, outside of the big mistakes in the video, that the Lakers are pumping his assist numbers. However, this analysis simply scratches the surface. Looking at assist percentages, pace, and minutes might reveal some discrepancies.</p>

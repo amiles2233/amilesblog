@@ -1,0 +1,139 @@
+---
+title: Are Lonzo Ball's Assists Being Inflated?
+author: Aaron Miles
+date: '2017-11-22'
+slug: are-lonzo-ball-s-assists-being-inflated
+categories:
+  - Sports
+  - Basketball
+tags:
+  - nba
+  - viz
+---
+
+Yesterday, I saw [this video](https://twitter.com/Rachel__Nichols/status/933157793569402880) from Rachel Nichols' The Jump showing some instances where Lonzo Ball was credited with assists that he shouldn't have been. Given the Lakers investment in Lonzo, are we to conclude that they are fudging up his assist numbers in order to increase Ball's hype? Or are these just a few egregious mistakes? A look at the data will help us find out.
+
+To test this, I pulled game logs from the [Stattleship API](https://api.stattleship.com/) and compared Lonzo Ball's assists at home games vs away games. If the Lakers are systematically crediting Ball with unearned assists, we should see his assist average at home games be higher than his average at away games.
+
+First, I pull the game logs from the API, and do some quick merging
+
+```{r, message=FALSE}
+library(plyr)
+library(tidyverse)
+library(stattleshipR)
+library(ggbeeswarm)
+library(ggrepel)
+```
+```{r include=FALSE}
+stattleshipR::set_token('6f21357b4f89eec0deb10adfe0f813d5')
+```
+
+```{r eval=FALSE}
+gmloglist1718 <- ss_get_result(sport="basketball",
+                               league="nba",
+                               ep="game_logs",
+                               query = list(season_id="nba-2017-2018",
+                                            status="ended",
+                                            intervaltype="regularseason",
+                                            per_page=40),
+                               walk=TRUE,
+                               verbose = TRUE)
+
+```
+```{r echo=FALSE}
+gmloglist1718 <- readRDS("~/amilesblog/data/nba/gmloglist1718.RDS")
+
+```
+
+
+```{r}
+# Game Log Data Frame
+gl <- ldply(gmloglist1718, function(x) x$game_logs) %>%
+  filter(game_played==TRUE) %>%
+  select(id, team_id, game_id, player_id, is_home_team, assists, triple_double) %>%
+  distinct()
+
+# Player Data Frame
+pl <- ldply(gmloglist1718, function(x) x$players) %>%
+  select(id, name) %>%
+  rename(player=name) %>%
+  distinct()
+
+# Team Data Frame
+tm <- ldply(gmloglist1718, function(x) x$teams) %>%
+  select(id, name, nickname, slug) %>%
+  rename(team=name) %>%
+  distinct()
+
+# Join Together
+gl <- gl %>%
+  left_join(pl, by=c("player_id"="id")) %>%
+  left_join(tm, by=c("team_id"="id"))
+
+```
+
+Now that the data is in order, let's look at Ball's home and away assist average to see if we find any major differences.
+
+```{r echo=FALSE}
+gl %>%
+  filter(player=="Lonzo Ball") %>%
+  group_by(is_home_team) %>%
+  summarize(assists=mean(assists)) %>%
+  ggplot(aes(x=is_home_team, y=assists, fill=is_home_team, label=round(assists,2))) +
+  geom_bar(stat="identity") +
+  geom_text(vjust=1) +
+  theme_minimal() +
+  ylab("Assists") +
+  xlab("Home Game") +
+  ggtitle("Lonzo Ball Home and Away Game Assist Averages") +
+  scale_fill_brewer(palette = "Dark2", name="Home Game")
+
+```
+
+The averages look about the same , but averages can hide a lot of variation. Let's plot out his assists for each game.
+
+```{r echo=FALSE}
+gl %>%
+  filter(player=="Lonzo Ball") %>%
+  ggplot(aes(x=is_home_team, y=assists, color=is_home_team)) +
+  geom_beeswarm() +
+  theme_minimal() +
+  ylab("Assists") +
+  xlab("Home Game") +
+  ggtitle("Lonzo Ball Home and Away Game Assists") +
+  scale_color_brewer(palette = "Dark2", name="Home Game")
+
+```
+
+Again, not much here to suggest that the Lakers are systematically pumping up his assist numbers. As a further check, let's look at how his home and away assist averages compare to those of the rest of the league to see if his numbers stand out.
+
+```{r echo=FALSE}
+gl %>%
+  group_by(player_id) %>%
+  mutate(games=n_distinct(game_id)) %>%
+  ungroup() %>%
+  filter(games>5) %>%
+  group_by(player_id, player, is_home_team) %>%
+  summarize(assists=mean(assists)) %>%
+  mutate(team=ifelse(is_home_team==TRUE,"home","away"),
+         lonzo=ifelse(player=="Lonzo Ball",player,"")) %>%
+  select(-is_home_team) %>%
+  spread(team, assists) %>%
+  ggplot(aes(x=home, y=away, color=lonzo, label=lonzo)) +
+  theme_minimal() +
+  geom_point() +
+  geom_label_repel() +
+  ylab("Away Game Assist Average") +
+  xlab("Home Game Assist Average") +
+  ggtitle("NBA Player Home and Away Assist Averages") +
+  scale_color_brewer(palette="Dark2") +
+  theme(legend.position = "none")
+
+```
+
+
+Ball ends up smack-dab in the middle, there are players at his level with better APG at home, and players with better APG away, so he doesn't stand out by this metric at all.
+
+So far, it's tough to conclude that, outside of the big mistakes in the video, that the Lakers are pumping his assist numbers. However, this analysis simply scratches the surface. Looking at assist percentages, pace, and minutes might reveal some discrepancies.
+
+
