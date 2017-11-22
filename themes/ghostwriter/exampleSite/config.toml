@@ -1,11 +1,10 @@
 baseurl = "https://example.com/"
-title = "Aaron's Adventures in Analytics"
+title = "Ghostwriter example"
 theme = "ghostwriter"
 languageCode = "en-us"
 copyright = "My Name"
 disqusShortname = "XXX"
 googleAnalytics = "XXX"
-relativeurls=true
 
 [Author]
     name = "My Name"
@@ -16,17 +15,20 @@ relativeurls=true
 
 [Params]
     intro = true
-    headline = "Aaron's Adventures in Analytics"
-    description = "My Mediocre Musings"
-    github = "https://github.com/amiles2233"
-    linkedin = "https://linkedin.com/in/aaronrmiles/"
-    twitter = "https://twitter.com/_aaronmiles"
-    email = "amiles2233@gmail.com"
+    headline = "Ghostwriter example"
+    description = "Ghostwriter example description"
+    github = "https://github.com/XXX"
+    gitlab = "https://gitlab.com/XXX"
+    linkedin = "https://linkedin.com/in/XXX/"
+    gplus = "https://google.com/+XXX"
+    twitter = "https://twitter.com/XXX"
+    stackoverflow = "https://stackoverflow.com/users/XXX/YYY"
+    email = "XXX@example.com"
     opengraph = true
     shareTwitter = true
     shareFacebook = true
-    shareGooglePlus = false
-    shareLinkedIn = true
+    shareGooglePlus = true
+    shareLinkedIn = false
     dateFormat = "Mon, Jan 2, 2006"
     highlightJsUrl = ""
     highlightJsLocalUrl = ""
@@ -39,13 +41,17 @@ relativeurls=true
     url = "/"
     weight = 1
 
+[[menu.main]]
+    name = "Projects"
+    url = "/project/"
+    weight = 2
 
 [[menu.main]]
     name = "Contact"
     url = "/page/contact/"
-    weight = 2
+    weight = 3
 
 [[menu.main]]
     name = "About"
     url = "/page/about/"
-    weight = 3
+    weight = 4
