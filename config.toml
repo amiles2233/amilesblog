@@ -1,6 +1,6 @@
 baseurl = "/"
 languageCode = "en-us"
-title = "Data Science Dojo"
+title = "Aaron Miles"
 theme = "hugo-lithium-theme"
 googleAnalytics = ""
 disqusShortname = ""
