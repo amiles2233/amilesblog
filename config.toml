@@ -1,4 +1,4 @@
-baseurl = "/"
+baseurl = "https://amiles.netlify.com/"
 languageCode = "en-us"
 title = "Aaron Miles"
 theme = "hugo-lithium-theme"
@@ -15,10 +15,13 @@ relativeurls=true
     url = "/about/"
 [[menu.main]]
     name = "GitHub"
-    url = "https://github.com/rstudio/blogdown"
+    url = "https://github.com/amiles2233"
+[[menu.main]]
+    name = "LinkedIn"
+    url = "http://linkedin.com/in/aaronrmiles"
 [[menu.main]]
     name = "Twitter"
-    url = "https://twitter.com/rstudio"
+    url = "https://twitter.com/_aaronmiles"
 
 [params]
     description = "Aaron's Analytics Playground."
