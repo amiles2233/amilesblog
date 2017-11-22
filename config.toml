@@ -5,7 +5,7 @@ languageCode = "en-us"
 copyright = "My Name"
 disqusShortname = "XXX"
 googleAnalytics = "XXX"
-relativeurls=true
+relativeurls=false
 
 [Author]
     name = "My Name"
