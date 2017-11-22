@@ -3,8 +3,4 @@ title: "About"
 date: "2016-05-05T21:48:51-07:00"
 ---
 
-My name is Aaron Miles and I'm a Data Scientist at a digital marketing agency called [The Shipyard](http://theshipyard.com). 
-
-I did both my undergraduate and graduatge studies in sociology, primarily focusing on education and quantitative methods. After finishing my master's I transition to a career in data science and haven't looked back. I primarily work in R and love using machine learning to answer weird questions, and that's what this blog is for!
-
-I live in Columbus, Ohio with my wife, two sons, and dog.
+This is a "hello world" example website for the [**blogdown**](https://github.com/rstudio/blogdown) package. The theme was forked from [@jrutheiser/hugo-lithium-theme](https://github.com/jrutheiser/hugo-lithium-theme) and modified by [Yihui Xie](https://github.com/yihui/hugo-lithium-theme).
