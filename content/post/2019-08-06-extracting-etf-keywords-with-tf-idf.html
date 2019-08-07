@@ -1,0 +1,190 @@
+---
+title: Extracting ETF keywords with TF-IDF
+author: Aaron Miles
+date: '2019-08-06'
+slug: extracting-etf-keywords-with-tf-idf
+categories:
+  - Finance
+tags:
+  - data science
+  - finance
+  - tidytext
+  - tfidf
+---
+
+<script src="/rmarkdown-libs/kePrint/kePrint.js"></script>
+
+
+<p>A few days ago, I saw <a href="https://www.cnn.com/interactive/2019/08/politics/democratic-debate-key-phrases/">this article on CNN</a> analyzing key phrases by candidate from the second democratic debate. The author pointed out that they used the <code>tidytext</code> package, specifically the built in tf-idf functionality, to do that analysis. Coincidentally, I was looking at the descriptions of various ETF’s extracted from RobinHood and <a href="tiingo.com">Tiingo</a> via the <code>riingo</code> and <code>RobinHood</code> packages.</p>
+<pre class="r"><code>library(tidyverse)
+library(tidytext)
+library(RobinHood)
+library(riingo)
+library(kableExtra)</code></pre>
+<pre class="r"><code>## Sign into Robinhood
+RH = RobinHood(username = keyring::key_list(&#39;robinhood&#39;)[1,2], 
+               password = keyring::key_get(&#39;robinhood&#39;))
+
+## Get ETF List
+etf &lt;- get_tag(RH=RH, tag=&#39;etf&#39;)
+
+## Get Metadata on Each
+meta &lt;- riingo_meta(etf)</code></pre>
+<pre class="r"><code>glimpse(meta)</code></pre>
+<pre><code>## Observations: 499
+## Variables: 6
+## $ ticker       &lt;chr&gt; &quot;VOO&quot;, &quot;SPY&quot;, &quot;MJ&quot;, &quot;VTI&quot;, &quot;BOTZ&quot;, &quot;QQQ&quot;, &quot;VYM&quot;, &quot;S…
+## $ startDate    &lt;dttm&gt; 2010-09-09, 1993-01-29, 2018-02-07, 2001-05-31, 20…
+## $ exchangeCode &lt;chr&gt; &quot;NYSE ARCA&quot;, &quot;NYSE ARCA&quot;, &quot;NYSE ARCA&quot;, &quot;NYSE ARCA&quot;,…
+## $ name         &lt;chr&gt; &quot;VANGUARD 500 INDEX FUND ETF SHARES&quot;, &quot;SPDR SP 500 …
+## $ endDate      &lt;dttm&gt; 2019-08-06, 2019-08-06, 2019-08-06, 2019-08-06, 20…
+## $ description  &lt;chr&gt; &quot;The Fund employs an indexing investment approach d…</code></pre>
+<p>Looking at the data, there’s a nice description field to play with, however, it’s filled with legal talk and can obfuscate what the ETF does.</p>
+<p>For example, probably of interest to this audience, is the AIEQ, or AI POWERED EQUITY ETF. It’s description reads as such:</p>
+<blockquote>
+<p>The Fund is actively managed and invests primarily in equity securities listed on a U.S. exchange based on the results of a proprietary, quantitative model (the “EquBot Model”) developed by EquBot LLC (“EquBot”) that runs on the IBM Watson™ platform. EquBot, the Fund’s sub-adviser, is a technology based company focused on applying artificial intelligence (“AI”) based solutions to investment analyses. As an IBM Global Entrepreneur company, EquBot leverages IBM’s Watson AI to conduct an objective, fundamental analysis of U.S.-listed common stocks and real estate investment trusts (“REITs”) based on up to ten years of historical data and apply that analysis to recent economic and news data. Each day, the EquBot Model ranks each company based on the probability of the company benefiting from current economic conditions, trends, and world events and identifies approximately 30 to 125 companies with the greatest potential over the next twelve months for appreciation and their corresponding weights, while maintaining volatility (i.e., the range in which the portfolio’s returns vary) comparable to the broader U.S. equity market. The Fund may invest in the securities of companies of any market capitalization. The EquBot model recommends a weight for each company based on its potential for appreciation and correlation to the other companies in the Fund’s portfolio. The EquBot model limits the weight of any individual company to 10%. At times, a significant portion of the Fund’s assets may consist of cash and cash equivalents. IBM’s Watson AI is a computing platform capable of answering natural language questions by connecting large amounts of data, both structured (e.g., spreadsheets) and unstructured (e.g., news articles), and learning from each analysis it conducts (e.g., by recognizing patterns) to produce a more accurate answer with each subsequent question. The Fund’s investment adviser utilizes the recommendations of the EquBot Model to decide which securities to purchase and sell, while complying with the Investment Company Act of 1940 (the “1940 Act”) and its rules and regulations. The Fund’s investment adviser anticipates primarily making purchase and sale decisions based on information from the EquBot Model. The Fund may frequently and actively purchase and sell securities.</p>
+</blockquote>
+<p>There’s a lot there, a lot of it legalese. Being a data scientist, I think the idea of an AI powered ETF is pretty cool, but (frankly), I’m not going to slog through 499 stuffy descriptions when there’s an easier way. That’s where tf-idf comes in.</p>
+<p>What is tf-idf? It stands for Term Frequency - Inverse Document Frequency and it’s a technique to find important words in documents. Essentially it looks at all the words (or phrases) in a document, filters out the ones that are common across all documents, and finds words unique to that document.</p>
+<p>In the CNN article, they found phrases that were unique to candidates so they could easily identify how each candidate differed from the others. For example, the key phrases extracted for John Delaney were ‘impossible promises’, ‘real solutions’, and ‘private sector’. Anyone who watched the debate knew that he positioned himself in contrast to candidates pitching large progressive agendas. Marianne Williamson’s key phrases were ‘deep truth’, ‘false god’, ‘collectivized hatred’, and ‘heal’, which is 0% surprising to anyone who had heard her speak before.</p>
+<p>To me, these summarizations seemed effective, so why not try it with these ETF’s?</p>
+<p>To do this, I’ll use the <code>bind_tf_idf</code> function in the <code>tidytext</code> package. In addition to using word counts, I’ll also use bigrams to try to capture phrasing. In order to prevent redudancies (like identifying the bigram ‘artificial intelligence’ alongside the words ‘artificial’ and ‘intelligence’). From the tf-idf scores, I’ll identify the top 3 terms by ETF.</p>
+<pre class="r"><code>## Extract Bigrams
+ticker_bigram &lt;- meta %&gt;%
+  select(ticker, description) %&gt;%
+  mutate(description=tolower(description)) %&gt;%
+  unnest_tokens(term, description, token = &quot;ngrams&quot;, n = 2) %&gt;%
+  separate(term, c(&quot;word1&quot;, &quot;word2&quot;), sep = &quot; &quot;) %&gt;%
+  filter(!word1 %in% stop_words$word) %&gt;%
+  filter(!word2 %in% stop_words$word) %&gt;%
+  unite(term, word1, word2, sep = &quot; &quot;) %&gt;%
+  count(ticker, term, sort = TRUE) 
+
+## Pull Bigram Words
+bg_words &lt;- ticker_bigram %&gt;% separate(term, c(&quot;word1&quot;, &quot;word2&quot;), sep = &quot; &quot;)
+
+## Extract Unigrams
+ticker_unigram &lt;- meta %&gt;%
+  select(ticker, description) %&gt;%
+  mutate(description=tolower(description)) %&gt;%
+  unnest_tokens(term, description) %&gt;%
+  anti_join(stop_words, by=c(&#39;term&#39;=&#39;word&#39;)) %&gt;%
+  filter(!term %in% unique(c(bg_words$word1, bg_words$word2))) %&gt;%
+  count(ticker, term, sort = TRUE)  
+
+## Bind together, calculate tf-idf, identify top 3 words
+ticker_tfidf &lt;- bind_rows(ticker_unigram, ticker_bigram) %&gt;%
+  bind_tf_idf(term, ticker, n) %&gt;%
+  arrange(ticker, desc(tf_idf)) %&gt;%
+  group_by(ticker) %&gt;%
+  top_n(3) %&gt;%
+  select(ticker, term)  %&gt;%
+  summarize(terms = paste(sort(unique(term)),collapse=&quot;, &quot;))
+
+
+## Merge back to original df
+meta &lt;- meta %&gt;%
+  left_join(ticker_tfidf, by=&#39;ticker&#39;)</code></pre>
+<p>Now let’s look at the AIEQ ticker to see what terms have been extracted.</p>
+<pre class="r"><code>meta %&gt;%
+  filter(ticker==&#39;AIEQ&#39;) %&gt;%
+  .$terms</code></pre>
+<pre><code>## [1] &quot;company based, equbot model, ibm’s watson, watson ai&quot;</code></pre>
+<p>From these terms, we can see at a glance that this ETF is based on a model with IBM Watson. You have to dig deeper to see the whole ETF’s strategy, but the extracted terms allow you to get an general idea of what it’s about.</p>
+<p>Let’s look at some other terms.</p>
+<pre class="r"><code>meta %&gt;%
+  filter(ticker %in% c(&#39;BIL&#39;, &#39;VPL&#39;, &#39;YOLO&#39;, &#39;LVL&#39;, &#39;AMJL&#39;, &#39;ARKW&#39;)) %&gt;%
+  select(ticker, name, terms) %&gt;%
+  knitr::kable() %&gt;%
+  kable_styling()</code></pre>
+<table class="table" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+ticker
+</th>
+<th style="text-align:left;">
+name
+</th>
+<th style="text-align:left;">
+terms
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+YOLO
+</td>
+<td style="text-align:left;">
+AdvisorShares Pure Cannabis
+</td>
+<td style="text-align:left;">
+advisorshares pure, pure cannabis
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+ARKW
+</td>
+<td style="text-align:left;">
+ARK WEB X0 ETF
+</td>
+<td style="text-align:left;">
+fintech innovation, shifting, technology infrastructure
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+VPL
+</td>
+<td style="text-align:left;">
+VANGUARD PACIFIC STOCK INDEX FUND ETF SHARES
+</td>
+<td style="text-align:left;">
+asia pacific, developed asia, ftse developed
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+AMJL
+</td>
+<td style="text-align:left;">
+Credit Suisse AG Nassau Branch XLinks Monthly Pay 2X Leveraged Alerian MLP Index ETN 05162036
+</td>
+<td style="text-align:left;">
+NA NA
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+LVL
+</td>
+<td style="text-align:left;">
+INVESCO SP GLOBAL DIVIDEND OPPORTUNITIES INDEX ETF
+</td>
+<td style="text-align:left;">
+100 common, 346.1 billion, 854.5 million, countries included, global broad, japan korea, korea singapore
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+BIL
+</td>
+<td style="text-align:left;">
+SPDRR BLOOMBERG BARCLAYS 13 MONTH TBILL ETF
+</td>
+<td style="text-align:left;">
+1 month, 3 months, u.s treasury
+</td>
+</tr>
+</tbody>
+</table>
+<p>There’s a range of usefulness here. ARKW’s terms show that it’s centered around fintech, LVL’s terms show it to be focused on the asia-pacific region. YOLO, VPL, and BIL have informative terms, but don’t give you much more than what is in the title. AMJL is a total miss, not returning any useful terms.</p>
+<p>Overall, tf-idf was mostly successful in extracting useful terms from ETF descriptions, even with some being redundant. There’s a variety of other text summarization techniques, but this analysis shows that tf-idf can quickly extract key terms from text with minimal preprocessing.</p>
+<div id="disclaimers" class="section level4">
+<h4>Disclaimers</h4>
+<p><em>Not sure how this works, so just covering my butt</em><br />
+Nothing in this post should be considered investment advice, research, or an invitation to buy or sell a security</p>
+<p>Also, if you invest based on anything I say, you are not a smart person.</p>
+</div>

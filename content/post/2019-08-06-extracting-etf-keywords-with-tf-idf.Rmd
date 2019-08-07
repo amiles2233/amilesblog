@@ -1,0 +1,138 @@
+---
+title: Extracting ETF keywords with TF-IDF
+author: Aaron Miles
+date: '2019-08-06'
+slug: extracting-etf-keywords-with-tf-idf
+categories:
+  - Finance
+tags:
+  - data science
+  - finance
+  - tidytext
+  - tfidf
+---
+
+
+A few days ago, I saw [this article on CNN](https://www.cnn.com/interactive/2019/08/politics/democratic-debate-key-phrases/) analyzing key phrases by candidate from the second democratic debate. The author pointed out that they used the `tidytext` package, specifically the built in tf-idf functionality, to do that analysis. Coincidentally, I was looking at the descriptions of various ETF's extracted from RobinHood and [Tiingo](tiingo.com) via the `riingo` and `RobinHood` packages. 
+
+```{r setup, echo=TRUE, error=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(tidytext)
+library(RobinHood)
+library(riingo)
+library(kableExtra)
+
+```
+
+```{r get_data, echo=TRUE, eval=TRUE, error=FALSE, message=FALSE, warning=FALSE}
+## Sign into Robinhood
+RH = RobinHood(username = keyring::key_list('robinhood')[1,2], 
+               password = keyring::key_get('robinhood'))
+
+## Get ETF List
+etf <- get_tag(RH=RH, tag='etf')
+
+## Get Metadata on Each
+meta <- riingo_meta(etf)
+
+```
+
+```{r glimpse_meta, echo=TRUE, eval=TRUE}
+glimpse(meta)
+
+```
+Looking at the data, there's a nice description field to play with, however, it's filled with legal talk and can obfuscate what the ETF does. 
+
+For example, probably of interest to this audience, is the AIEQ, or `r meta %>% filter(ticker=='AIEQ') %>% .$name`. It's description reads as such:
+
+>`r meta %>% filter(ticker=='AIEQ') %>% .$description`
+
+There's a lot there, a lot of it legalese. Being a data scientist, I think the idea of an AI powered ETF is pretty cool, but (frankly), I'm not going to slog through 499 stuffy descriptions when there's an easier way. That's where tf-idf comes in.
+
+What is tf-idf? It stands for Term Frequency - Inverse Document Frequency and it's a technique to find important words in documents. Essentially it looks at all the words (or phrases) in a document, filters out the ones that are common across all documents, and finds words unique to that document. 
+
+In the CNN article, they found phrases that were unique to candidates so they could easily identify how each candidate differed from the others. For example, the key phrases extracted for John Delaney were 'impossible promises', 'real solutions', and 'private sector'. Anyone who watched the debate knew that he positioned himself in contrast to candidates pitching large progressive agendas. Marianne Williamson's key phrases were 'deep truth', 'false god', 'collectivized hatred', and 'heal', which is 0% surprising to anyone who had heard her speak before.
+
+To me, these summarizations seemed effective, so why not try it with these ETF's?
+
+To do this, I'll use the `bind_tf_idf` function in the `tidytext` package. In addition to using word counts, I'll also use bigrams to try to capture phrasing. In order to prevent redudancies (like identifying the bigram 'artificial intelligence' alongside the words 'artificial' and 'intelligence'). From the tf-idf scores, I'll identify the top 3 terms by ETF.
+
+```{r prep_tfidf, echo=TRUE, eval=TRUE, warning=FALSE, message=FALSE, error=FALSE}
+## Extract Bigrams
+ticker_bigram <- meta %>%
+  select(ticker, description) %>%
+  mutate(description=tolower(description)) %>%
+  unnest_tokens(term, description, token = "ngrams", n = 2) %>%
+  separate(term, c("word1", "word2"), sep = " ") %>%
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word) %>%
+  unite(term, word1, word2, sep = " ") %>%
+  count(ticker, term, sort = TRUE) 
+
+## Pull Bigram Words
+bg_words <- ticker_bigram %>% separate(term, c("word1", "word2"), sep = " ")
+
+## Extract Unigrams
+ticker_unigram <- meta %>%
+  select(ticker, description) %>%
+  mutate(description=tolower(description)) %>%
+  unnest_tokens(term, description) %>%
+  anti_join(stop_words, by=c('term'='word')) %>%
+  filter(!term %in% unique(c(bg_words$word1, bg_words$word2))) %>%
+  count(ticker, term, sort = TRUE)  
+
+## Bind together, calculate tf-idf, identify top 3 words
+ticker_tfidf <- bind_rows(ticker_unigram, ticker_bigram) %>%
+  bind_tf_idf(term, ticker, n) %>%
+  arrange(ticker, desc(tf_idf)) %>%
+  group_by(ticker) %>%
+  top_n(3) %>%
+  select(ticker, term)  %>%
+  summarize(terms = paste(sort(unique(term)),collapse=", "))
+
+
+## Merge back to original df
+meta <- meta %>%
+  left_join(ticker_tfidf, by='ticker')
+
+```
+
+Now let's look at the AIEQ ticker to see what terms have been extracted.
+
+```{r aieq_terms, echo=TRUE, eval=TRUE, error=FALSE, message=FALSE, warning=FALSE}
+meta %>%
+  filter(ticker=='AIEQ') %>%
+  .$terms
+```
+
+From these terms, we can see at a glance that this ETF is based on a model with IBM Watson. You have to dig deeper to see the whole ETF's strategy, but the extracted terms allow you to get an general idea of what it's about. 
+
+Let's look at some other terms.
+
+```{r other_terms, echo=TRUE, eval=TRUE, message=TRUE, warning=TRUE}
+
+meta %>%
+  filter(ticker %in% c('BIL', 'VPL', 'YOLO', 'LVL', 'AMJL', 'ARKW')) %>%
+  select(ticker, name, terms) %>%
+  knitr::kable() %>%
+  kable_styling()
+
+
+
+```
+
+There's a range of usefulness here. ARKW's terms  show that it's centered around fintech, LVL's terms show it to be focused on the asia-pacific region. YOLO, VPL, and BIL have informative terms, but don't give you much more than what is in the title. AMJL is a total miss, not returning any useful terms. 
+
+Overall, tf-idf was mostly successful in extracting useful terms from ETF descriptions, even with some being redundant. There's a variety of other text summarization techniques, but this analysis shows that tf-idf can quickly extract key terms from text with minimal preprocessing.
+
+#### Disclaimers
+
+*Not sure how this works, so just covering my butt*  
+Nothing in this post should be considered investment advice, research, or an invitation to buy or sell a security
+
+Also, if you invest based on anything I say, you are not a smart person.
+
+
+
+
+
