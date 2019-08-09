@@ -99,6 +99,12 @@ ignoreFiles = ["\\.Rmd$", "\\.Rmarkdown$", "_files$", "_cache$"]
   pre = "<i class=\"sidebar-button-icon fa fa-lg fa-linkedin\"></i>"
   url = "https://www.linkedin.com/in/aaronrmiles/"
 
+[[menu.links]]
+  weight = 1
+  identifier = "rbloggers"
+  name = "R-Bloggers"
+  pre = "<i class=\"sidebar-button-icon fa fa-lg fa-link\"></i>"
+  url = "https://r-bloggers.com"
 
 
 [[menu.misc]]
@@ -129,7 +135,7 @@ ignoreFiles = ["\\.Rmd$", "\\.Rmarkdown$", "_files$", "_cache$"]
   # If false it will flat categories.
   hierarchicalCategories = true
 
-  description = "Hugo tranquilpeak theme demo"
+  description = ""
 
   # Customization
   # Define the behavior of the sidebar
