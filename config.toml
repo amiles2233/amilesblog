@@ -15,7 +15,7 @@
 baseurl = "https://amiles.netlify.com/"
 languageCode = "en-us"
 defaultContentLanguage = "en-us"
-title = "Hugo tranquilpeak theme"
+title = "Aaron's Analytics Blog"
 theme = "hugo-tranquilpeak-theme"
 disqusShortname = "hugo-tranquilpeak-theme"
 googleAnalytics = "UA-110081213-1"
@@ -32,8 +32,8 @@ ignoreFiles = ["\\.Rmd$", "\\.Rmarkdown$", "_files$", "_cache$"]
   archive = "archives"
 
 [author]
-  name = "Aaron Miles"
-  bio = "Love my family, data, inference, connections, finance, golf, basketball, football, DFS, "
+  name = "Aaron Miles",
+  bio = "My data science-related musings"
   job = "Data Scientist"
   location = "Columbus, Ohio"
   # Your Gravatar email. Overwrite `author.picture` everywhere in the blog
