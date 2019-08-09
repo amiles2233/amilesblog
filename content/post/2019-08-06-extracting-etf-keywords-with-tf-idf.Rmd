@@ -15,6 +15,8 @@ tags:
 
 A few days ago, I saw [this article on CNN](https://www.cnn.com/interactive/2019/08/politics/democratic-debate-key-phrases/) analyzing key phrases by candidate from the second democratic debate. The author pointed out that they used the `tidytext` package, specifically the built in tf-idf functionality, to do that analysis. Coincidentally, I was looking at the descriptions of various ETF's extracted from RobinHood and [Tiingo](tiingo.com) via the `riingo` and `RobinHood` packages. 
 
+
+
 ```{r setup, echo=TRUE, error=FALSE, message=FALSE, warning=FALSE}
 library(tidyverse)
 library(tidytext)
@@ -47,7 +49,7 @@ For example, probably of interest to this audience, is the AIEQ, or `r meta %>% 
 
 >`r meta %>% filter(ticker=='AIEQ') %>% .$description`
 
-There's a lot there, a lot of it legalese. Being a data scientist, I think the idea of an AI powered ETF is pretty cool, but (frankly), I'm not going to slog through 499 stuffy descriptions when there's an easier way. That's where tf-idf comes in.
+There's a lot there, a lot of it legalese. Being a data scientist, I think the idea of an AI powered ETF is pretty cool, but (frankly), I'm not going to slog through 499 stuffy descriptions to find cool ETFs when there's an easier way. That's where tf-idf comes in.
 
 What is tf-idf? It stands for Term Frequency - Inverse Document Frequency and it's a technique to find important words in documents. Essentially it looks at all the words (or phrases) in a document, filters out the ones that are common across all documents, and finds words unique to that document. 
 
