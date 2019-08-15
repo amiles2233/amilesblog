@@ -16,8 +16,11 @@ keywords:
 
 <!--more-->
 
+One of the best things about the Tiingo API is the news feed. One feature is that if you look for news associated with a specific ticker, for all the articles returned, you can see which other tickers were mentioned as well. This got me thinking about finding potential associations between stocks more quickly than waiting for the correlation to show up in their price, or other associative techniques. 
 
-```{r setup, include=FALSE}
+Luckily, there was a recent news event to test this theory; Apple recently accounced that they acquired Intel's chipmaking division, freeing them from having to rely on Qualcomm for their iPhone chips. This changes the connection between Apple and Intel and Qualcomm, respectively, and potentially the correlation.
+
+```{r six_mo_cor, warning=FALSE, message=FALSE, error=FALSE}
 
 library(data.table)
 library(dtplyr)
@@ -30,13 +33,7 @@ library(patchwork)
 
 set.seed(8675309)
 
-```
 
-One of the best things about the Tiingo API is the news feed. One feature is that if you look for news associated with a specific ticker, for all the articles returned, you can see which other tickers were mentioned as well. This got me thinking about finding potential associations between stocks more quickly than waiting for the correlation to show up in their price, or other associative techniques. 
-
-Luckily, there was a recent news event to test this theory; Apple recently accounced that they acquired Intel's chipmaking division, freeing them from having to rely on Qualcomm for their iPhone chips. This changes the connection between Apple and Intel and Qualcomm, respectively, and potentially the correlation.
-
-```{r six_mo_cor, warning=FALSE, message=FALSE, error=FALSE}
 # Intel & Qualcom Returns
 returns_monthly <- c('INTC', 'QCOM') %>%
   riingo_prices(start_date = '2013-08-01', end_date = Sys.Date()) %>%

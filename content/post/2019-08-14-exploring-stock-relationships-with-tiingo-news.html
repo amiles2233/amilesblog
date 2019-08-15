@@ -19,7 +19,19 @@ keywords:
 <!--more-->
 <p>One of the best things about the Tiingo API is the news feed. One feature is that if you look for news associated with a specific ticker, for all the articles returned, you can see which other tickers were mentioned as well. This got me thinking about finding potential associations between stocks more quickly than waiting for the correlation to show up in their price, or other associative techniques.</p>
 <p>Luckily, there was a recent news event to test this theory; Apple recently accounced that they acquired Intel’s chipmaking division, freeing them from having to rely on Qualcomm for their iPhone chips. This changes the connection between Apple and Intel and Qualcomm, respectively, and potentially the correlation.</p>
-<pre class="r"><code># Intel &amp; Qualcom Returns
+<pre class="r"><code>library(data.table)
+library(dtplyr)
+library(tidyquant)
+library(riingo)
+library(widyr)
+library(igraph)
+library(ggraph)
+library(patchwork)
+
+set.seed(8675309)
+
+
+# Intel &amp; Qualcom Returns
 returns_monthly &lt;- c(&#39;INTC&#39;, &#39;QCOM&#39;) %&gt;%
   riingo_prices(start_date = &#39;2013-08-01&#39;, end_date = Sys.Date()) %&gt;%
   group_by(ticker) %&gt;%
