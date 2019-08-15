@@ -26,7 +26,6 @@ library(data.table)
 library(dtplyr)
 library(tidyquant)
 library(riingo)
-library(widyr)
 library(igraph)
 library(ggraph)
 library(patchwork)
@@ -165,7 +164,7 @@ a <- news_joined %>%
   geom_node_point(color = "darkslategray4", size = 3) +
   geom_node_label(aes(label = name),  size = 3, repel = TRUE) +
   theme_void() +
-  ggtitle('Excluding July 22 & After July 29')
+  ggtitle('Before July 22 & After July 29')
 
 ## Network graph for week of announcement
 b <- news_joined %>%
