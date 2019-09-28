@@ -1,0 +1,198 @@
+---
+title: Week 4 Fantasy Football Optimizations
+author: Aaron Miles
+date: '2019-09-28'
+slug: week-4-fantasy-football-optimizations
+summary: We are BACK with week four optimized lineups!
+categories:
+  - Daily Fantasy
+  - Fantasy
+  - Football
+  - Optimization
+  - Sports
+tags:
+  - data science
+  - dfs
+  - optimization
+  - nfl
+  - viz
+keywords:
+  - tech
+---
+
+We are BACK with optimal lineups from week 4 simulations!
+
+I haven't changed the script substantially since last week, and as I went over the code for scraping projections and generating lineups last week, I'll skip some of that this week so we can focus more on the content. If you want to review it, last week's post is [here](https://amiles.netlify.com/2019/09/building-optimal-daily-fantasy-lineups-in-r/).
+
+### Setup
+
+```{r setup, error=FALSE, message=FALSE, warning=FALSE}
+library(data.table)
+library(dtplyr)
+library(tidyverse)
+library(rPref)
+library(kableExtra)
+
+week <- 4
+
+proj <- readRDS(paste0('week_', week, '_proj.RDS'))
+
+sal <- read_csv('DKSalaries.csv') %>%
+  rename(roster_position=`Roster Position`)
+
+sal$Name[sal$Name=='Todd Gurley II'] <- 'Todd Gurley'
+
+
+
+```
+
+I'll start with the optimized lineups pulled for week 4, with the same details as last time: 10,000 lineups, using the standard deviation of projections, completely individually based (still working on that).
+
+```{r readLineups, error=FALSE, message=FALSE, warning=FALSE}
+
+sim_lu <- readRDS(paste0('sim_lineups_week_', week, '.RDS')) %>%
+  rename(pts_base=points) %>%
+  select(lineup, Name, team, position, pts_base, pts_pred, sd_pts, Salary)
+
+glimpse(sim_lu)
+
+
+sim_lu %>%
+  filter(lineup<=3) %>%
+  arrange(lineup, position, desc(pts_pred)) %>%
+  mutate_at(vars(pts_base, pts_pred, sd_pts), function(x) round(x, 2)) %>%
+  knitr::kable() %>%
+  kable_styling() %>%
+  column_spec(1, bold=TRUE) %>%
+  collapse_rows(columns = 1, valign = 'top') %>%
+  scroll_box(height = '500px', width = '100%')
+  
+
+```
+
+### Who is in Optimal Lineups?  
+
+```{r top_presence, message=FALSE, error=FALSE, warning=FALSE, out.width='100%'}
+sim_lu %>%
+  group_by(Name, position) %>%
+  dplyr::summarize(lu=n_distinct(lineup)) %>%
+  ungroup() %>%
+  group_by(position) %>%
+  top_n(10, lu) %>%
+  ungroup() %>%
+  arrange(position, desc(lu)) %>%
+  mutate(Name=factor(Name),
+         Name=fct_reorder(Name, lu)) %>%
+  ggplot(aes(x=Name, y=lu)) +
+  geom_bar(stat='identity') +
+  facet_wrap(~position, ncol = 3, scales='free') +
+  coord_flip() +
+  scale_y_continuous(labels = scales::comma) +
+  ggtitle('Top 10 Players Present by Position')
+```
+
+Some of my observations:  
+  * Patrick Mahomes is HEAVILY represented here, showing up in over 6,000 lineups. No other QB shows up in more than 1,000  
+  * There's a fair amount of parity at RB, with a linear decline down the top 10 running backs. I guess this week, as in real life, running backs are fairly replacable.  
+  * Keenan Allen and Terry McLaurin (and to a lesser extent, Cooper Kupp) are highly present too, which is interesting because since we can select up to 4 WRs in a lineup, you'd expect there to be a more linear decline.  
+  * TE and D have similar patterns, there's only 5-6 you should really consider in your lineups.
+  
+### Who is getting placed in Lineups?
+
+DraftKings provides scoring for 422 players this week, but only 102 make it into optimized lineups. Why is that? To determine, I'll plot projected points vs salary, colored by whether or not they make it into optimized lineups, and sized by their projection standard deviation
+
+```{r pts_vs_sd, error=FALSE, message=FALSE, error=FALSE}
+plyr_lu <- sim_lu %>%
+  group_by(Name, position) %>%
+  dplyr::summarize(lu=n_distinct(lineup)) %>%
+  ungroup() 
+
+proj %>% 
+  filter(avg_type=='robust') %>%
+  mutate(Name = ifelse(pos=="DST", last_name, paste(first_name, last_name))) %>%
+  inner_join(sal, by=c("Name")) %>%
+  select(Name, team, position, points, Salary, sd_pts) %>%
+  left_join(plyr_lu, by='Name') %>%
+  replace_na(list(lu=0)) %>%
+  mutate(lu_bin=ifelse(lu==0, '0 Lineups', '>=1 Lineups'),
+         lu_5=cut(lu,5, labels = FALSE)) %>%
+  ggplot(aes(x=Salary, y=points, color=lu_bin, size=sd_pts)) +
+  geom_point() +
+  scale_color_manual(values = c('red', 'blue'), name="") +
+  geom_smooth(inherit.aes = FALSE, aes(x=Salary, y=points), method = 'lm', se=FALSE) +
+  ylab('Projected Points') +
+  xlab('Salary') +
+  ggtitle('Who makes it into Optimized Lineups?') +
+  scale_x_continuous(labels=scales::dollar)
+```
+
+As expected, we see players with higher points per salary making it into lineups. But some above the fitted line make it and other don't. As we can see here, it's due to projection certainty. Players above the fitted line that make it into lineups have higher `sd_pts` than those who do not, meaning there's more upside there.
+  
+### Flex Configurations
+
+In DFS lineups, you have an extra spot to use on an RB, WR, and TE of your chosing
+
+```{r flex, message=FALSE, error=FALSE, warning=FALSE}
+sim_lu %>%
+  group_by(lineup) %>%
+  mutate(lineup_pts=sum(pts_pred)) %>%
+  group_by(lineup, position) %>%
+  mutate(n=n()) %>%
+  select(lineup, position, n, lineup_pts) %>%
+  distinct() %>%
+  spread(key=position, value=n) %>%
+  filter(RB>=2, TE>=1, WR>=3) %>%
+  mutate(flex=case_when(RB==3 ~ 'RB',
+                        TE==2 ~ 'TE',
+                        WR==4 ~ 'WR')) %>%
+  group_by(flex) %>%
+  dplyr::summarize(pts=median(lineup_pts),
+                   cases=n()) %>%
+  knitr::kable() %>%
+  kable_styling(full_width = FALSE)
+
+```
+
+Similar to last week, WRs are the flex selection in about half of optimal cases (4,978 this week vs 5,775 last week). Given what we saw with the last graph, this makes sense. There are some clear favorites in the WR spot that you'll want to get, whereas RBs are fairly replaceable this week. And the situations where you want a TE in FLEX is when one really blows up, hence the higher average score. 
+
+### Pareto Lineups
+
+```{r pareto, message=FALSE, error=FALSE, warning=FALSE}
+lu_df <- sim_lu %>%
+  group_by(lineup) %>%
+  dplyr::summarize(lineup_pts=sum(pts_pred),
+                   lineup_sd=sum(sd_pts)) %>%
+  ungroup()
+
+pto <- psel(lu_df, low(lineup_sd) * high(lineup_pts))
+
+
+ggplot(lu_df, aes(y=lineup_pts, x=lineup_sd)) +
+  geom_point() +
+  geom_point(data=pto, size=5) +
+  ylab('Lineup Points') +
+  xlab('Lineup Points St Dev') +
+  ggtitle('Lineup Points vs Uncertainty',
+          subtitle = 'Pareto Lineups Bolded')
+```
+
+
+Here's a look at the pareto lineups.
+
+```{r pareto_table, error=FALSE, message=FALSE, error=FALSE}
+psel(lu_df, low(lineup_sd) * high(lineup_pts)) %>%
+  left_join(sim_lu, by='lineup') %>%
+  group_by(lineup) %>%
+  arrange(lineup_pts, position, desc(pts_pred)) %>%
+  select(lineup, lineup_pts, lineup_sd, Name, team, position, pts_pred, sd_pts, Salary) %>%
+  mutate_at(vars(lineup_pts, lineup_sd, pts_pred, sd_pts), function(x) round(x, 2)) %>%
+  knitr::kable() %>%
+  kable_styling(fixed_thead = T) %>%
+  column_spec(1:3, bold=TRUE) %>%
+  collapse_rows(columns = 1:3, valign = 'top') %>%
+  scroll_box(height = '500px', width = '100%')
+
+```
+
+
+Full optimized lineups are located [here](https://drive.google.com/file/d/1cPTcm_9Fr12kamF-cK9shQmNSw1EGR4f/view?usp=sharing)
