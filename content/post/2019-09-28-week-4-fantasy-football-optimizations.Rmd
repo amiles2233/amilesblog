@@ -96,8 +96,7 @@ Some of my observations:
   * There's a fair amount of parity at RB, with a linear decline down the top 10 running backs. I guess this week, as in real life, running backs are fairly replacable.  
   * Keenan Allen and Terry McLaurin (and to a lesser extent, Cooper Kupp) are highly present too, which is interesting because since we can select up to 4 WRs in a lineup, you'd expect there to be a more linear decline.  
   * TE and D have similar patterns, there's only 5-6 you should really consider in your lineups.
-  
-### Who is getting placed in Lineups?
+
 
 DraftKings provides scoring for 422 players this week, but only 102 make it into optimized lineups. Why is that? To determine, I'll plot projected points vs salary, colored by whether or not they make it into optimized lineups, and sized by their projection standard deviation
 
