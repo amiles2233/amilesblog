@@ -1,9 +1,10 @@
 ---
-title: Week 6 Fantasy Football Optimizations
+title: Week 7 Fantasy Football Optimal Lineups
 author: Aaron Miles
-date: '2019-10-10'
-summary: Week 6 optimizations for the DraftKings main slate
-slug: week-6-fantasy-football-optimizations
+date: '2019-10-19'
+slug: week-7-fantasy-football-optimal-lineups
+summary: Week 7 Optimized Lineups for the DraftKings main slate. Rough week last week, but let's get back on the horse!
+
 categories:
   - Daily Fantasy
   - Fantasy
@@ -11,17 +12,18 @@ categories:
   - Optimization
   - Sports
 tags:
+  - data science
   - dfs
   - nfl
   - optimization
-  - rstats
-  - data science
   - viz
 keywords:
   - tech
 ---
 
-We are BACK with optimal lineups from week 6 simulations!
+We are BACK with optimal lineups from week 7 simulations!
+
+It was a rough week last week, but that's going to happen, let's get back in the driver's seat this week.
 
 Again, no real changes since last week. If you want to review the overall code for scraping and optimizing projections, the initial post is [here](https://amiles.netlify.com/2019/09/building-optimal-daily-fantasy-lineups-in-r/).
 
@@ -34,7 +36,7 @@ library(tidyverse)
 library(rPref)
 library(kableExtra)
 
-week <- 6
+week <- 7
 
 proj <- readRDS(paste0('week_', week, '_proj.RDS'))
 
@@ -97,18 +99,16 @@ sim_lu %>%
 Some of my observations: 
 
   
-* More favorites this week at QB, with Lamar Jackson being in almost 40% of lineups. Patrick Mahomes comes in next at around 20%. DeShaun Watson is the only other QB in at least 10% of lineups.
+* Lots of parity at the QB spot. Lamar Jackson and Kyler Murray are most present, but there's a linear decline.
+  
+* Leonard Fournette is a heavy favorite at RB, showing up in almost 80% of lineups. Kenyan Drake appears to be the value play again (lets hope he gets a better play call for that 2 pt conversion this time).  
   
   
-* Le'Veon Bell is a heavy favorite at RB, showing up in almost 60% of lineups. Kenyan Drake appears to be the value play. 
+* T.Y. Hilton is the favorite at WR, showing up in almost 50% of lineups, Cooper Kupp comes in second by a fair margin (He was a dud last week, but hey, that means my Niners are awesome, so I'll take it.). Allen Lazard appears to be the value play
   
+* It's the usual story at TE, there are only a few worth playing. 
   
-* Cooper Kupp is the biggest play at WR, with Robert Woods in 2nd (which I resent as a Niners fan). Sanu, Sutton, Crowder, and Parker are all value plays, at relatively low salaries   
-  
-  
-* It's the usual suspects at TE, with Kelce being the only one you potentially have to pay up for. 
-  
-* Jets are a strong favorite at D this week, most likely due to their price. Over the last few weeks, the model has selected the D with the lowest price.
+* Redskins, Dolphins, and Colts are the most common defenses most likely due to their price. Over the last few weeks, the model has selected the Defenses with the lowest prices.
   
 ### Who is getting placed in Lineups?
 
@@ -139,8 +139,7 @@ proj %>%
   scale_x_continuous(labels=scales::dollar)
 ```
 
-Interestingly, we see some players below the fitted line make it into optimal lineups, but we can see that these are due to high player uncertainty, so these are players with high potential to blow up, even though their average prediction is fairly low.
-
+This week, not many players below the line get into lineups, but some above get excluded due to their small uncertainty. Remember, this method takes players who have the potential to blow up rather than players with solid floors.
 
 
 ### Flex Configurations
@@ -168,7 +167,7 @@ sim_lu %>%
 
 ```
 
-In contrast to previous weeks, where WRs were the most popular optimal configuration, RB's are the most popular this week, taking the flex spot in 45% of lineups!
+Pretty even flex configurations, with RBs being the most popular TE's the secons, and WR's a distance third
 
 ### Pareto Lineups
 
@@ -210,4 +209,4 @@ psel(lu_df, low(lineup_sd) * high(lineup_pts)) %>%
 ```
 
 
-Week 6 optimal lineups can be found [here](https://drive.google.com/open?id=1S5bO0wGIs9VcpCrAjU1b1K0nsAcrBQFF)
+Week 7 optimal lineups can be found [here](https://drive.google.com/open?id=1PQgo3Y_wOQumZjLyEi0fou3P9-df4q0F)
