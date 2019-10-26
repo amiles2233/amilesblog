@@ -1,0 +1,4904 @@
+---
+title: Week 8 DraftKings Optimial Lineups
+author: Aaron Miles
+date: '2019-10-26'
+slug: week-8-draftkings-optimial-lineups
+summary: Week 8 Optimized Lineups for the DraftKings main slate. 
+categories:
+  - Daily Fantasy
+  - Deep Learning
+  - Fantasy
+  - Football
+  - Sports
+  - Optimization
+tags:
+  - data science
+  - dfs
+  - optimization
+  - nfl
+  - rstats
+  - viz
+keywords:
+  - tech
+---
+
+<script src="/rmarkdown-libs/kePrint/kePrint.js"></script>
+
+
+<p>We are BACK with optimal lineups from week 8 simulations!</p>
+<p>Better week last week, even with Devonta Freeman (who we had a lot of exposure to) picking an ill-advised fight. Kenny Golladay also flopped, but not due to a bad game script. If you tell me there’s a game where the Lions will have 4 recieving TD’s, I’ll take him 9 times out of 10. All of those happened to go to MJJ, but that was a winning game script for Lions recievers. Just shows the importance of thinking through process over results.</p>
+<p>If you want to review the overall code for scraping and optimizing projections, the initial post is <a href="https://amiles.netlify.com/2019/09/building-optimal-daily-fantasy-lineups-in-r/">here</a>.</p>
+<div id="setup" class="section level3">
+<h3>Setup</h3>
+<pre class="r"><code>library(data.table)
+library(dtplyr)
+library(tidyverse)
+library(rPref)
+library(kableExtra)
+
+week &lt;- 8
+
+proj &lt;- readRDS(paste0(&#39;week_&#39;, week, &#39;_proj.RDS&#39;))
+
+sal &lt;- read_csv(paste0(&#39;DKSalaries_wk_&#39;, week, &#39;.csv&#39;))</code></pre>
+<p>I’ll start with the optimized lineups pulled for week 4, with the same details as last time: 10,000 lineups, using the standard deviation of projections, completely individually based (still working on that).</p>
+<pre class="r"><code>sim_lu &lt;- readRDS(paste0(&#39;sim_lineups_week_&#39;, week, &#39;.RDS&#39;)) %&gt;%
+  rename(pts_base=points) %&gt;%
+  select(lineup, Name, team, position, pts_base, pts_pred, sd_pts, Salary)
+
+glimpse(sim_lu)</code></pre>
+<pre><code>## Observations: 90,000
+## Variables: 8
+## Groups: Name [169]
+## $ lineup   &lt;int&gt; 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2,...
+## $ Name     &lt;chr&gt; &quot;Jaguars&quot;, &quot;DeAndre Hopkins&quot;, &quot;Josh Hill&quot;, &quot;Cameron B...
+## $ team     &lt;chr&gt; &quot;JAC&quot;, &quot;HOU&quot;, &quot;NOS&quot;, &quot;TBB&quot;, &quot;LAR&quot;, &quot;CIN&quot;, &quot;HOU&quot;, &quot;DET...
+## $ position &lt;chr&gt; &quot;DST&quot;, &quot;WR&quot;, &quot;TE&quot;, &quot;TE&quot;, &quot;RB&quot;, &quot;WR&quot;, &quot;QB&quot;, &quot;WR&quot;, &quot;RB&quot;...
+## $ pts_base &lt;dbl&gt; 8.296376, 21.096072, 7.121320, 7.771596, 17.685417, 1...
+## $ pts_pred &lt;dbl&gt; 11.160235, 22.598214, 11.408854, 9.940246, 20.022272,...
+## $ sd_pts   &lt;dbl&gt; 1.7968880, 0.8933727, 1.7777746, 1.2992043, 1.6497544...
+## $ Salary   &lt;dbl&gt; 2900, 8100, 3200, 2700, 7400, 5100, 7100, 6400, 7000,...</code></pre>
+<pre class="r"><code>sim_lu %&gt;%
+  filter(lineup&lt;=3) %&gt;%
+  arrange(lineup, position, desc(pts_pred)) %&gt;%
+  mutate_at(vars(pts_base, pts_pred, sd_pts), function(x) round(x, 2)) %&gt;%
+  knitr::kable() %&gt;%
+  kable_styling() %&gt;%
+  column_spec(1, bold=TRUE) %&gt;%
+  collapse_rows(columns = 1, valign = &#39;top&#39;) %&gt;%
+  scroll_box(height = &#39;600px&#39;, width = &#39;100%&#39;)</code></pre>
+<div style="border: 1px solid #ddd; padding: 0px; overflow-y: scroll; height:600px; overflow-x: scroll; width:100%; ">
+<table class="table" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+lineup
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+Name
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+team
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+position
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+pts_base
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+pts_pred
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+sd_pts
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+Salary
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+1
+</td>
+<td style="text-align:left;">
+Jaguars
+</td>
+<td style="text-align:left;">
+JAC
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+8.30
+</td>
+<td style="text-align:right;">
+11.16
+</td>
+<td style="text-align:right;">
+1.80
+</td>
+<td style="text-align:right;">
+2900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deshaun Watson
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+24.03
+</td>
+<td style="text-align:right;">
+24.96
+</td>
+<td style="text-align:right;">
+1.21
+</td>
+<td style="text-align:right;">
+7100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Todd Gurley
+</td>
+<td style="text-align:left;">
+LAR
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+17.69
+</td>
+<td style="text-align:right;">
+20.02
+</td>
+<td style="text-align:right;">
+1.65
+</td>
+<td style="text-align:right;">
+7400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Chris Carson
+</td>
+<td style="text-align:left;">
+SEA
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+18.08
+</td>
+<td style="text-align:right;">
+19.19
+</td>
+<td style="text-align:right;">
+1.47
+</td>
+<td style="text-align:right;">
+7000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Josh Hill
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+7.12
+</td>
+<td style="text-align:right;">
+11.41
+</td>
+<td style="text-align:right;">
+1.78
+</td>
+<td style="text-align:right;">
+3200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Cameron Brate
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+7.77
+</td>
+<td style="text-align:right;">
+9.94
+</td>
+<td style="text-align:right;">
+1.30
+</td>
+<td style="text-align:right;">
+2700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DeAndre Hopkins
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+21.10
+</td>
+<td style="text-align:right;">
+22.60
+</td>
+<td style="text-align:right;">
+0.89
+</td>
+<td style="text-align:right;">
+8100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Kenny Golladay
+</td>
+<td style="text-align:left;">
+DET
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+16.28
+</td>
+<td style="text-align:right;">
+18.61
+</td>
+<td style="text-align:right;">
+1.93
+</td>
+<td style="text-align:right;">
+6400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Boyd
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+13.84
+</td>
+<td style="text-align:right;">
+14.66
+</td>
+<td style="text-align:right;">
+1.27
+</td>
+<td style="text-align:right;">
+5100
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+2
+</td>
+<td style="text-align:left;">
+Raiders
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+5.77
+</td>
+<td style="text-align:right;">
+6.65
+</td>
+<td style="text-align:right;">
+0.88
+</td>
+<td style="text-align:right;">
+1500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Teddy Bridgewater
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+16.16
+</td>
+<td style="text-align:right;">
+22.43
+</td>
+<td style="text-align:right;">
+4.41
+</td>
+<td style="text-align:right;">
+5900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Chris Carson
+</td>
+<td style="text-align:left;">
+SEA
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+18.08
+</td>
+<td style="text-align:right;">
+19.55
+</td>
+<td style="text-align:right;">
+1.47
+</td>
+<td style="text-align:right;">
+7000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Le’Veon Bell
+</td>
+<td style="text-align:left;">
+NYJ
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+17.46
+</td>
+<td style="text-align:right;">
+19.41
+</td>
+<td style="text-align:right;">
+1.83
+</td>
+<td style="text-align:right;">
+6900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+David Montgomery
+</td>
+<td style="text-align:left;">
+CHI
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+11.43
+</td>
+<td style="text-align:right;">
+13.97
+</td>
+<td style="text-align:right;">
+1.73
+</td>
+<td style="text-align:right;">
+4400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Cameron Brate
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+7.77
+</td>
+<td style="text-align:right;">
+8.65
+</td>
+<td style="text-align:right;">
+1.30
+</td>
+<td style="text-align:right;">
+2700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Michael Thomas
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+21.39
+</td>
+<td style="text-align:right;">
+23.19
+</td>
+<td style="text-align:right;">
+2.67
+</td>
+<td style="text-align:right;">
+8000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Cooper Kupp
+</td>
+<td style="text-align:left;">
+LAR
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+17.70
+</td>
+<td style="text-align:right;">
+21.94
+</td>
+<td style="text-align:right;">
+2.08
+</td>
+<td style="text-align:right;">
+7500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T.Y. Hilton
+</td>
+<td style="text-align:left;">
+IND
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+16.04
+</td>
+<td style="text-align:right;">
+17.54
+</td>
+<td style="text-align:right;">
+1.93
+</td>
+<td style="text-align:right;">
+6100
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+3
+</td>
+<td style="text-align:left;">
+Lions
+</td>
+<td style="text-align:left;">
+DET
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+7.61
+</td>
+<td style="text-align:right;">
+9.31
+</td>
+<td style="text-align:right;">
+1.08
+</td>
+<td style="text-align:right;">
+2800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Matthew Stafford
+</td>
+<td style="text-align:left;">
+DET
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+19.88
+</td>
+<td style="text-align:right;">
+21.01
+</td>
+<td style="text-align:right;">
+1.07
+</td>
+<td style="text-align:right;">
+6100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Chris Carson
+</td>
+<td style="text-align:left;">
+SEA
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+18.08
+</td>
+<td style="text-align:right;">
+19.25
+</td>
+<td style="text-align:right;">
+1.47
+</td>
+<td style="text-align:right;">
+7000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Ty Johnson
+</td>
+<td style="text-align:left;">
+DET
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+12.26
+</td>
+<td style="text-align:right;">
+17.48
+</td>
+<td style="text-align:right;">
+1.54
+</td>
+<td style="text-align:right;">
+4900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+David Montgomery
+</td>
+<td style="text-align:left;">
+CHI
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+11.43
+</td>
+<td style="text-align:right;">
+15.80
+</td>
+<td style="text-align:right;">
+1.73
+</td>
+<td style="text-align:right;">
+4400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Josh Hill
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+7.12
+</td>
+<td style="text-align:right;">
+11.11
+</td>
+<td style="text-align:right;">
+1.78
+</td>
+<td style="text-align:right;">
+3200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Michael Thomas
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+21.39
+</td>
+<td style="text-align:right;">
+22.79
+</td>
+<td style="text-align:right;">
+2.67
+</td>
+<td style="text-align:right;">
+8000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Cooper Kupp
+</td>
+<td style="text-align:left;">
+LAR
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+17.70
+</td>
+<td style="text-align:right;">
+19.37
+</td>
+<td style="text-align:right;">
+2.08
+</td>
+<td style="text-align:right;">
+7500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T.Y. Hilton
+</td>
+<td style="text-align:left;">
+IND
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+16.04
+</td>
+<td style="text-align:right;">
+17.13
+</td>
+<td style="text-align:right;">
+1.93
+</td>
+<td style="text-align:right;">
+6100
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div id="who-is-in-optimal-lineups" class="section level3">
+<h3>Who is in Optimal Lineups?</h3>
+<pre class="r"><code>sim_lu %&gt;%
+  group_by(Name, position, Salary) %&gt;%
+  dplyr::summarize(lu=n_distinct(lineup)) %&gt;%
+  ungroup() %&gt;%
+  group_by(position) %&gt;%
+  top_n(10, lu) %&gt;%
+  ungroup() %&gt;%
+  arrange(position, desc(lu)) %&gt;%
+  mutate(Name=factor(Name),
+         Name=fct_reorder(Name, lu)) %&gt;%
+  ggplot(aes(x=Name, y=lu/1000, fill=Salary)) +
+  geom_bar(stat=&#39;identity&#39;) +
+  facet_wrap(~position, ncol = 3, scales=&#39;free&#39;) +
+  coord_flip() +
+  scale_y_continuous(labels = scales::comma) +
+  scale_fill_viridis_c() +
+  xlab(&#39;&#39;) +
+  ylab(&#39;Lineups (Thousands)&#39;) +
+  ggtitle(&#39;Top 10 Players Present by Position&#39;) </code></pre>
+<p><img src="/post/2019-10-26-week-8-draftkings-optimial-lineups_files/figure-html/top_presence-1.png" width="100%" /></p>
+<p>Some of my observations:</p>
+<ul>
+<li><p>We’ve kind of seen QBs go back and forth between one heavy favorite and lots of parity. This is one of the heavy favorite weeks, with DeShaun Watson is over half of lineups. (Note, I removed Matt Ryan from being considered due to him being unlikely to play)</p></li>
+<li><p>Conversely this is a week with lots of parity at the RB spot. Devonta Freeman is in the most lineups, likely due to his modest price. They’re still pricing Saquon Barkley VERY high.</p></li>
+<li><p>Micheal Thomas is the favorite at WR, showing up in almost 50% of lineups, followed up by a group of WRs. Interestingly Boyd has been a play for most weeks, these analysts are seemingly big on a rebound for him.</p></li>
+<li><p>It’s the usual story at TE, there are only a few worth playing. Usually there’s two tiers, but this week Austin Hooper looks to be a big favorite.</p></li>
+<li><p>Raiders, Jabs and Panthers are the most common defenses most likely due to their price. Over the last few weeks, the model has selected the Defenses with the lowest prices.</p></li>
+</ul>
+</div>
+<div id="who-is-getting-placed-in-lineups" class="section level3">
+<h3>Who is getting placed in Lineups?</h3>
+<p>DraftKings provides scoring for 425 players this week, but only 169 make it into optimized lineups. Why is that? To determine, I’ll plot projected points vs salary, colored by whether or not they make it into optimized lineups, and sized by their projection standard deviation</p>
+<pre class="r"><code>plyr_lu &lt;- sim_lu %&gt;%
+  group_by(Name, position) %&gt;%
+  dplyr::summarize(lu=n_distinct(lineup)) %&gt;%
+  ungroup() 
+
+proj %&gt;% 
+  filter(avg_type==&#39;weighted&#39;) %&gt;%
+  mutate(Name = ifelse(pos==&quot;DST&quot;, last_name, paste(first_name, last_name))) %&gt;%
+  inner_join(sal, by=c(&quot;Name&quot;)) %&gt;%
+  select(Name, team, position, points, Salary, sd_pts) %&gt;%
+  left_join(plyr_lu, by=&#39;Name&#39;) %&gt;%
+  replace_na(list(lu=0)) %&gt;%
+  mutate(lu_bin=ifelse(lu==0, &#39;0 Lineups&#39;, &#39;&gt;=1 Lineups&#39;),
+         lu_5=cut(lu,5, labels = FALSE)) %&gt;%
+  ggplot(aes(x=Salary, y=points, color=lu_bin, size=sd_pts)) +
+  geom_point() +
+  scale_color_manual(values = c(&#39;red&#39;, &#39;blue&#39;), name=&quot;&quot;) +
+  geom_smooth(inherit.aes = FALSE, aes(x=Salary, y=points), method = &#39;lm&#39;, se=FALSE) +
+  ylab(&#39;Projected Points&#39;) +
+  xlab(&#39;Salary&#39;) +
+  ggtitle(&#39;Who makes it into Optimized Lineups?&#39;) +
+  scale_x_continuous(labels=scales::dollar)</code></pre>
+<p><img src="/post/2019-10-26-week-8-draftkings-optimial-lineups_files/figure-html/pts_vs_sd-1.png" width="672" /></p>
+<p>This week, not many players below the line get into lineups, but some above get excluded due to their small uncertainty. Remember, this method takes players who have the potential to blow up rather than players with solid floors.</p>
+</div>
+<div id="flex-configurations" class="section level3">
+<h3>Flex Configurations</h3>
+<p>In DFS lineups, you have an extra spot to use on an RB, WR, and TE of your chosing</p>
+<pre class="r"><code>sim_lu %&gt;%
+  group_by(lineup) %&gt;%
+  mutate(lineup_pts=sum(pts_pred)) %&gt;%
+  group_by(lineup, position) %&gt;%
+  mutate(n=n()) %&gt;%
+  select(lineup, position, n, lineup_pts) %&gt;%
+  distinct() %&gt;%
+  spread(key=position, value=n) %&gt;%
+  filter(RB&gt;=2, TE&gt;=1, WR&gt;=3) %&gt;%
+  mutate(flex=case_when(RB==3 ~ &#39;RB&#39;,
+                        TE==2 ~ &#39;TE&#39;,
+                        WR==4 ~ &#39;WR&#39;)) %&gt;%
+  group_by(flex) %&gt;%
+  dplyr::summarize(pts=median(lineup_pts),
+                   cases=n()) %&gt;%
+  knitr::kable() %&gt;%
+  kable_styling(full_width = FALSE)</code></pre>
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+flex
+</th>
+<th style="text-align:right;">
+pts
+</th>
+<th style="text-align:right;">
+cases
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+152.2400
+</td>
+<td style="text-align:right;">
+3113
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+152.6066
+</td>
+<td style="text-align:right;">
+1410
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+152.5542
+</td>
+<td style="text-align:right;">
+5477
+</td>
+</tr>
+</tbody>
+</table>
+<p>Pretty even flex configurations, with WRs being the most popular RB’s the second, and TE’s a distance third</p>
+</div>
+<div id="pareto-lineups" class="section level3">
+<h3>Pareto Lineups</h3>
+<pre class="r"><code>lu_df &lt;- sim_lu %&gt;%
+  group_by(lineup) %&gt;%
+  dplyr::summarize(lineup_pts=sum(pts_pred),
+                   lineup_sd=sum(sd_pts)) %&gt;%
+  ungroup()
+
+pto &lt;- psel(lu_df, low(lineup_sd) * high(lineup_pts))
+
+
+ggplot(lu_df, aes(y=lineup_pts, x=lineup_sd)) +
+  geom_point() +
+  geom_point(data=pto, size=5) +
+  ylab(&#39;Lineup Points&#39;) +
+  xlab(&#39;Lineup Points St Dev&#39;) +
+  ggtitle(&#39;Lineup Points vs Uncertainty&#39;,
+          subtitle = &#39;Pareto Lineups Bolded&#39;)</code></pre>
+<p><img src="/post/2019-10-26-week-8-draftkings-optimial-lineups_files/figure-html/pareto-1.png" width="672" /></p>
+<p>Here’s a look at the pareto lineups.</p>
+<pre class="r"><code>psel(lu_df, low(lineup_sd) * high(lineup_pts)) %&gt;%
+  left_join(sim_lu, by=&#39;lineup&#39;) %&gt;%
+  group_by(lineup) %&gt;%
+  arrange(lineup_pts, position, desc(Salary)) %&gt;%
+  select(lineup, lineup_pts, lineup_sd, Name, team, position, pts_pred, sd_pts, Salary) %&gt;%
+  mutate_at(vars(lineup_pts, lineup_sd, pts_pred, sd_pts), function(x) round(x, 2)) %&gt;%
+  knitr::kable() %&gt;%
+  kable_styling(fixed_thead = T) %&gt;%
+  column_spec(1:3, bold=TRUE) %&gt;%
+  collapse_rows(columns = 1:3, valign = &#39;top&#39;) %&gt;%
+  scroll_box(height = &#39;500px&#39;, width = &#39;100%&#39;)</code></pre>
+<div style="border: 1px solid #ddd; padding: 0px; overflow-y: scroll; height:500px; overflow-x: scroll; width:100%; ">
+<table class="table" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;position: sticky; top:0; background-color: #FFFFFF;">
+lineup
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;position: sticky; top:0; background-color: #FFFFFF;">
+lineup_pts
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;position: sticky; top:0; background-color: #FFFFFF;">
+lineup_sd
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;position: sticky; top:0; background-color: #FFFFFF;">
+Name
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;position: sticky; top:0; background-color: #FFFFFF;">
+team
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;position: sticky; top:0; background-color: #FFFFFF;">
+position
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;position: sticky; top:0; background-color: #FFFFFF;">
+pts_pred
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;position: sticky; top:0; background-color: #FFFFFF;">
+sd_pts
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;position: sticky; top:0; background-color: #FFFFFF;">
+Salary
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+5220
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+146.00
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+9.44
+</td>
+<td style="text-align:left;">
+Panthers
+</td>
+<td style="text-align:left;">
+CAR
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+9.14
+</td>
+<td style="text-align:right;">
+1.34
+</td>
+<td style="text-align:right;">
+2400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Russell Wilson
+</td>
+<td style="text-align:left;">
+SEA
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+24.67
+</td>
+<td style="text-align:right;">
+1.06
+</td>
+<td style="text-align:right;">
+7200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Christian McCaffrey
+</td>
+<td style="text-align:left;">
+CAR
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+24.83
+</td>
+<td style="text-align:right;">
+1.39
+</td>
+<td style="text-align:right;">
+9200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Devonta Freeman
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+15.74
+</td>
+<td style="text-align:right;">
+0.73
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Jonnu Smith
+</td>
+<td style="text-align:left;">
+TEN
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+8.33
+</td>
+<td style="text-align:right;">
+0.91
+</td>
+<td style="text-align:right;">
+2800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DeAndre Hopkins
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+21.76
+</td>
+<td style="text-align:right;">
+0.89
+</td>
+<td style="text-align:right;">
+8100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Courtland Sutton
+</td>
+<td style="text-align:left;">
+DEN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+15.67
+</td>
+<td style="text-align:right;">
+0.61
+</td>
+<td style="text-align:right;">
+5300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Kenny Stills
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+13.43
+</td>
+<td style="text-align:right;">
+1.63
+</td>
+<td style="text-align:right;">
+4700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dede Westbrook
+</td>
+<td style="text-align:left;">
+JAC
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+12.43
+</td>
+<td style="text-align:right;">
+0.88
+</td>
+<td style="text-align:right;">
+4500
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+9579
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+147.88
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+9.69
+</td>
+<td style="text-align:left;">
+Giants
+</td>
+<td style="text-align:left;">
+NYG
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+7.86
+</td>
+<td style="text-align:right;">
+0.90
+</td>
+<td style="text-align:right;">
+2200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Russell Wilson
+</td>
+<td style="text-align:left;">
+SEA
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+24.47
+</td>
+<td style="text-align:right;">
+1.06
+</td>
+<td style="text-align:right;">
+7200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Le’Veon Bell
+</td>
+<td style="text-align:left;">
+NYJ
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+18.86
+</td>
+<td style="text-align:right;">
+1.83
+</td>
+<td style="text-align:right;">
+6900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Devonta Freeman
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+15.71
+</td>
+<td style="text-align:right;">
+0.73
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Duke Johnson
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+11.00
+</td>
+<td style="text-align:right;">
+0.66
+</td>
+<td style="text-align:right;">
+3800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Darren Waller
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+16.60
+</td>
+<td style="text-align:right;">
+1.73
+</td>
+<td style="text-align:right;">
+5900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DeAndre Hopkins
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+20.96
+</td>
+<td style="text-align:right;">
+0.89
+</td>
+<td style="text-align:right;">
+8100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Courtland Sutton
+</td>
+<td style="text-align:left;">
+DEN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+15.25
+</td>
+<td style="text-align:right;">
+0.61
+</td>
+<td style="text-align:right;">
+5300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Boyd
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+17.18
+</td>
+<td style="text-align:right;">
+1.27
+</td>
+<td style="text-align:right;">
+5100
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+9197
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+149.87
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+9.91
+</td>
+<td style="text-align:left;">
+Bengals
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+7.03
+</td>
+<td style="text-align:right;">
+0.60
+</td>
+<td style="text-align:right;">
+1700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deshaun Watson
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+25.75
+</td>
+<td style="text-align:right;">
+1.21
+</td>
+<td style="text-align:right;">
+7100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Chris Carson
+</td>
+<td style="text-align:left;">
+SEA
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+18.79
+</td>
+<td style="text-align:right;">
+1.47
+</td>
+<td style="text-align:right;">
+7000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Devonta Freeman
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+15.54
+</td>
+<td style="text-align:right;">
+0.73
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Hunter Henry
+</td>
+<td style="text-align:left;">
+LAC
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+14.23
+</td>
+<td style="text-align:right;">
+1.39
+</td>
+<td style="text-align:right;">
+4900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DeAndre Hopkins
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+22.21
+</td>
+<td style="text-align:right;">
+0.89
+</td>
+<td style="text-align:right;">
+8100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Chris Godwin
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+19.67
+</td>
+<td style="text-align:right;">
+1.59
+</td>
+<td style="text-align:right;">
+7100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Courtland Sutton
+</td>
+<td style="text-align:left;">
+DEN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+15.36
+</td>
+<td style="text-align:right;">
+0.61
+</td>
+<td style="text-align:right;">
+5300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Demaryius Thomas
+</td>
+<td style="text-align:left;">
+NYJ
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+11.29
+</td>
+<td style="text-align:right;">
+1.44
+</td>
+<td style="text-align:right;">
+3300
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+2909
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+151.93
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+10.10
+</td>
+<td style="text-align:left;">
+Raiders
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+7.27
+</td>
+<td style="text-align:right;">
+0.88
+</td>
+<td style="text-align:right;">
+1500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deshaun Watson
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+26.44
+</td>
+<td style="text-align:right;">
+1.21
+</td>
+<td style="text-align:right;">
+7100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Todd Gurley
+</td>
+<td style="text-align:left;">
+LAR
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+20.71
+</td>
+<td style="text-align:right;">
+1.65
+</td>
+<td style="text-align:right;">
+7400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Derrick Henry
+</td>
+<td style="text-align:left;">
+TEN
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+17.32
+</td>
+<td style="text-align:right;">
+1.65
+</td>
+<td style="text-align:right;">
+6000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Devonta Freeman
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+15.42
+</td>
+<td style="text-align:right;">
+0.73
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Evan Engram
+</td>
+<td style="text-align:left;">
+NYG
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+15.41
+</td>
+<td style="text-align:right;">
+1.08
+</td>
+<td style="text-align:right;">
+5300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DeAndre Hopkins
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+22.27
+</td>
+<td style="text-align:right;">
+0.89
+</td>
+<td style="text-align:right;">
+8100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Courtland Sutton
+</td>
+<td style="text-align:left;">
+DEN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+15.05
+</td>
+<td style="text-align:right;">
+0.61
+</td>
+<td style="text-align:right;">
+5300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Ted Ginn Jr. 
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+12.05
+</td>
+<td style="text-align:right;">
+1.41
+</td>
+<td style="text-align:right;">
+3700
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+4790
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+153.49
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+10.40
+</td>
+<td style="text-align:left;">
+Panthers
+</td>
+<td style="text-align:left;">
+CAR
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+9.02
+</td>
+<td style="text-align:right;">
+1.34
+</td>
+<td style="text-align:right;">
+2400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Russell Wilson
+</td>
+<td style="text-align:left;">
+SEA
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+24.46
+</td>
+<td style="text-align:right;">
+1.06
+</td>
+<td style="text-align:right;">
+7200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Chris Carson
+</td>
+<td style="text-align:left;">
+SEA
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+19.32
+</td>
+<td style="text-align:right;">
+1.47
+</td>
+<td style="text-align:right;">
+7000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Nick Chubb
+</td>
+<td style="text-align:left;">
+CLE
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+19.83
+</td>
+<td style="text-align:right;">
+1.73
+</td>
+<td style="text-align:right;">
+6600
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Devonta Freeman
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+15.46
+</td>
+<td style="text-align:right;">
+0.73
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Cameron Brate
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+11.21
+</td>
+<td style="text-align:right;">
+1.30
+</td>
+<td style="text-align:right;">
+2700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DeAndre Hopkins
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+22.25
+</td>
+<td style="text-align:right;">
+0.89
+</td>
+<td style="text-align:right;">
+8100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Courtland Sutton
+</td>
+<td style="text-align:left;">
+DEN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+15.51
+</td>
+<td style="text-align:right;">
+0.61
+</td>
+<td style="text-align:right;">
+5300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Boyd
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+16.43
+</td>
+<td style="text-align:right;">
+1.27
+</td>
+<td style="text-align:right;">
+5100
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+6228
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+154.54
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+10.92
+</td>
+<td style="text-align:left;">
+Jaguars
+</td>
+<td style="text-align:left;">
+JAC
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+12.56
+</td>
+<td style="text-align:right;">
+1.80
+</td>
+<td style="text-align:right;">
+2900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deshaun Watson
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+25.13
+</td>
+<td style="text-align:right;">
+1.21
+</td>
+<td style="text-align:right;">
+7100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Chris Carson
+</td>
+<td style="text-align:left;">
+SEA
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+20.93
+</td>
+<td style="text-align:right;">
+1.47
+</td>
+<td style="text-align:right;">
+7000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Derrick Henry
+</td>
+<td style="text-align:left;">
+TEN
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+17.53
+</td>
+<td style="text-align:right;">
+1.65
+</td>
+<td style="text-align:right;">
+6000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Devonta Freeman
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+15.19
+</td>
+<td style="text-align:right;">
+0.73
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Cameron Brate
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+10.72
+</td>
+<td style="text-align:right;">
+1.30
+</td>
+<td style="text-align:right;">
+2700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DeAndre Hopkins
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+21.41
+</td>
+<td style="text-align:right;">
+0.89
+</td>
+<td style="text-align:right;">
+8100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Courtland Sutton
+</td>
+<td style="text-align:left;">
+DEN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+15.42
+</td>
+<td style="text-align:right;">
+0.61
+</td>
+<td style="text-align:right;">
+5300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Boyd
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+15.65
+</td>
+<td style="text-align:right;">
+1.27
+</td>
+<td style="text-align:right;">
+5100
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+9167
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+155.75
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+10.95
+</td>
+<td style="text-align:left;">
+Raiders
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+6.35
+</td>
+<td style="text-align:right;">
+0.88
+</td>
+<td style="text-align:right;">
+1500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deshaun Watson
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+25.24
+</td>
+<td style="text-align:right;">
+1.21
+</td>
+<td style="text-align:right;">
+7100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Chris Carson
+</td>
+<td style="text-align:left;">
+SEA
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+19.72
+</td>
+<td style="text-align:right;">
+1.47
+</td>
+<td style="text-align:right;">
+7000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Le’Veon Bell
+</td>
+<td style="text-align:left;">
+NYJ
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+22.29
+</td>
+<td style="text-align:right;">
+1.83
+</td>
+<td style="text-align:right;">
+6900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Devonta Freeman
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+16.59
+</td>
+<td style="text-align:right;">
+0.73
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Cameron Brate
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+9.94
+</td>
+<td style="text-align:right;">
+1.30
+</td>
+<td style="text-align:right;">
+2700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DeAndre Hopkins
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+22.82
+</td>
+<td style="text-align:right;">
+0.89
+</td>
+<td style="text-align:right;">
+8100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+John Brown
+</td>
+<td style="text-align:left;">
+BUF
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+17.40
+</td>
+<td style="text-align:right;">
+2.04
+</td>
+<td style="text-align:right;">
+5900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Courtland Sutton
+</td>
+<td style="text-align:left;">
+DEN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+15.40
+</td>
+<td style="text-align:right;">
+0.61
+</td>
+<td style="text-align:right;">
+5300
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+6298
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+155.92
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+11.36
+</td>
+<td style="text-align:left;">
+Buccaneers
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+8.29
+</td>
+<td style="text-align:right;">
+0.80
+</td>
+<td style="text-align:right;">
+2500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Russell Wilson
+</td>
+<td style="text-align:left;">
+SEA
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+23.02
+</td>
+<td style="text-align:right;">
+1.06
+</td>
+<td style="text-align:right;">
+7200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Leonard Fournette
+</td>
+<td style="text-align:left;">
+JAC
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+24.96
+</td>
+<td style="text-align:right;">
+2.16
+</td>
+<td style="text-align:right;">
+7800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Devonta Freeman
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+16.38
+</td>
+<td style="text-align:right;">
+0.73
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Cameron Brate
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+9.15
+</td>
+<td style="text-align:right;">
+1.30
+</td>
+<td style="text-align:right;">
+2700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DeAndre Hopkins
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+21.84
+</td>
+<td style="text-align:right;">
+0.89
+</td>
+<td style="text-align:right;">
+8100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Lockett
+</td>
+<td style="text-align:left;">
+SEA
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+20.81
+</td>
+<td style="text-align:right;">
+1.13
+</td>
+<td style="text-align:right;">
+7000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Boyd
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+16.25
+</td>
+<td style="text-align:right;">
+1.27
+</td>
+<td style="text-align:right;">
+5100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Mike Williams
+</td>
+<td style="text-align:left;">
+LAC
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+15.21
+</td>
+<td style="text-align:right;">
+2.02
+</td>
+<td style="text-align:right;">
+4000
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+4471
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+155.97
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+11.68
+</td>
+<td style="text-align:left;">
+Buccaneers
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+8.34
+</td>
+<td style="text-align:right;">
+0.80
+</td>
+<td style="text-align:right;">
+2500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deshaun Watson
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+24.52
+</td>
+<td style="text-align:right;">
+1.21
+</td>
+<td style="text-align:right;">
+7100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Christian McCaffrey
+</td>
+<td style="text-align:left;">
+CAR
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+23.60
+</td>
+<td style="text-align:right;">
+1.39
+</td>
+<td style="text-align:right;">
+9200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Le’Veon Bell
+</td>
+<td style="text-align:left;">
+NYJ
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+21.57
+</td>
+<td style="text-align:right;">
+1.83
+</td>
+<td style="text-align:right;">
+6900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Devonta Freeman
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+15.91
+</td>
+<td style="text-align:right;">
+0.73
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Cameron Brate
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+10.94
+</td>
+<td style="text-align:right;">
+1.30
+</td>
+<td style="text-align:right;">
+2700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Lockett
+</td>
+<td style="text-align:left;">
+SEA
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+18.67
+</td>
+<td style="text-align:right;">
+1.13
+</td>
+<td style="text-align:right;">
+7000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Boyd
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+18.22
+</td>
+<td style="text-align:right;">
+1.27
+</td>
+<td style="text-align:right;">
+5100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Mike Williams
+</td>
+<td style="text-align:left;">
+LAC
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.18
+</td>
+<td style="text-align:right;">
+2.02
+</td>
+<td style="text-align:right;">
+4000
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+9353
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+156.19
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+11.75
+</td>
+<td style="text-align:left;">
+Raiders
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+7.03
+</td>
+<td style="text-align:right;">
+0.88
+</td>
+<td style="text-align:right;">
+1500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deshaun Watson
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+24.93
+</td>
+<td style="text-align:right;">
+1.21
+</td>
+<td style="text-align:right;">
+7100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Christian McCaffrey
+</td>
+<td style="text-align:left;">
+CAR
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+25.09
+</td>
+<td style="text-align:right;">
+1.39
+</td>
+<td style="text-align:right;">
+9200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Austin Ekeler
+</td>
+<td style="text-align:left;">
+LAC
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+17.76
+</td>
+<td style="text-align:right;">
+1.63
+</td>
+<td style="text-align:right;">
+5900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Devonta Freeman
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+16.63
+</td>
+<td style="text-align:right;">
+0.73
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Austin Hooper
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+20.89
+</td>
+<td style="text-align:right;">
+2.40
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Courtland Sutton
+</td>
+<td style="text-align:left;">
+DEN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+15.39
+</td>
+<td style="text-align:right;">
+0.61
+</td>
+<td style="text-align:right;">
+5300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Boyd
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.55
+</td>
+<td style="text-align:right;">
+1.27
+</td>
+<td style="text-align:right;">
+5100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Kenny Stills
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+13.92
+</td>
+<td style="text-align:right;">
+1.63
+</td>
+<td style="text-align:right;">
+4700
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+9008
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+156.59
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+11.77
+</td>
+<td style="text-align:left;">
+Raiders
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+5.94
+</td>
+<td style="text-align:right;">
+0.88
+</td>
+<td style="text-align:right;">
+1500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deshaun Watson
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+25.71
+</td>
+<td style="text-align:right;">
+1.21
+</td>
+<td style="text-align:right;">
+7100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Chris Carson
+</td>
+<td style="text-align:left;">
+SEA
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+20.42
+</td>
+<td style="text-align:right;">
+1.47
+</td>
+<td style="text-align:right;">
+7000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Sony Michel
+</td>
+<td style="text-align:left;">
+NEP
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+16.31
+</td>
+<td style="text-align:right;">
+1.27
+</td>
+<td style="text-align:right;">
+5200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Jonnu Smith
+</td>
+<td style="text-align:left;">
+TEN
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+8.56
+</td>
+<td style="text-align:right;">
+0.91
+</td>
+<td style="text-align:right;">
+2800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DeAndre Hopkins
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+22.52
+</td>
+<td style="text-align:right;">
+0.89
+</td>
+<td style="text-align:right;">
+8100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Chris Godwin
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+21.22
+</td>
+<td style="text-align:right;">
+1.59
+</td>
+<td style="text-align:right;">
+7100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T.Y. Hilton
+</td>
+<td style="text-align:left;">
+IND
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+19.88
+</td>
+<td style="text-align:right;">
+1.93
+</td>
+<td style="text-align:right;">
+6100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Kenny Stills
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+16.03
+</td>
+<td style="text-align:right;">
+1.63
+</td>
+<td style="text-align:right;">
+4700
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+7263
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+160.20
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+11.85
+</td>
+<td style="text-align:left;">
+Panthers
+</td>
+<td style="text-align:left;">
+CAR
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+9.53
+</td>
+<td style="text-align:right;">
+1.34
+</td>
+<td style="text-align:right;">
+2400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deshaun Watson
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+24.92
+</td>
+<td style="text-align:right;">
+1.21
+</td>
+<td style="text-align:right;">
+7100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Le’Veon Bell
+</td>
+<td style="text-align:left;">
+NYJ
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+18.96
+</td>
+<td style="text-align:right;">
+1.83
+</td>
+<td style="text-align:right;">
+6900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Devonta Freeman
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+16.26
+</td>
+<td style="text-align:right;">
+0.73
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Austin Hooper
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+22.78
+</td>
+<td style="text-align:right;">
+2.40
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Jonnu Smith
+</td>
+<td style="text-align:left;">
+TEN
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+9.95
+</td>
+<td style="text-align:right;">
+0.91
+</td>
+<td style="text-align:right;">
+2800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DeAndre Hopkins
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+21.63
+</td>
+<td style="text-align:right;">
+0.89
+</td>
+<td style="text-align:right;">
+8100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Kenny Golladay
+</td>
+<td style="text-align:left;">
+DET
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+21.04
+</td>
+<td style="text-align:right;">
+1.93
+</td>
+<td style="text-align:right;">
+6400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Courtland Sutton
+</td>
+<td style="text-align:left;">
+DEN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+15.13
+</td>
+<td style="text-align:right;">
+0.61
+</td>
+<td style="text-align:right;">
+5300
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+2598
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+160.81
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+13.47
+</td>
+<td style="text-align:left;">
+Jaguars
+</td>
+<td style="text-align:left;">
+JAC
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+11.37
+</td>
+<td style="text-align:right;">
+1.80
+</td>
+<td style="text-align:right;">
+2900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deshaun Watson
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+26.77
+</td>
+<td style="text-align:right;">
+1.21
+</td>
+<td style="text-align:right;">
+7100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Le’Veon Bell
+</td>
+<td style="text-align:left;">
+NYJ
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+21.34
+</td>
+<td style="text-align:right;">
+1.83
+</td>
+<td style="text-align:right;">
+6900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+James White
+</td>
+<td style="text-align:left;">
+NEP
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+15.47
+</td>
+<td style="text-align:right;">
+1.25
+</td>
+<td style="text-align:right;">
+5100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Cameron Brate
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+9.57
+</td>
+<td style="text-align:right;">
+1.30
+</td>
+<td style="text-align:right;">
+2700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DeAndre Hopkins
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+21.76
+</td>
+<td style="text-align:right;">
+0.89
+</td>
+<td style="text-align:right;">
+8100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Michael Thomas
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+24.62
+</td>
+<td style="text-align:right;">
+2.67
+</td>
+<td style="text-align:right;">
+8000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Kenny Stills
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+16.74
+</td>
+<td style="text-align:right;">
+1.63
+</td>
+<td style="text-align:right;">
+4700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dede Westbrook
+</td>
+<td style="text-align:left;">
+JAC
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+13.15
+</td>
+<td style="text-align:right;">
+0.88
+</td>
+<td style="text-align:right;">
+4500
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+9407
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+161.40
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+13.93
+</td>
+<td style="text-align:left;">
+Raiders
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+7.41
+</td>
+<td style="text-align:right;">
+0.88
+</td>
+<td style="text-align:right;">
+1500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deshaun Watson
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+24.16
+</td>
+<td style="text-align:right;">
+1.21
+</td>
+<td style="text-align:right;">
+7100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Leonard Fournette
+</td>
+<td style="text-align:left;">
+JAC
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+25.11
+</td>
+<td style="text-align:right;">
+2.16
+</td>
+<td style="text-align:right;">
+7800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Le’Veon Bell
+</td>
+<td style="text-align:left;">
+NYJ
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+22.22
+</td>
+<td style="text-align:right;">
+1.83
+</td>
+<td style="text-align:right;">
+6900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Derrick Henry
+</td>
+<td style="text-align:left;">
+TEN
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+18.22
+</td>
+<td style="text-align:right;">
+1.65
+</td>
+<td style="text-align:right;">
+6000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Cameron Brate
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+9.94
+</td>
+<td style="text-align:right;">
+1.30
+</td>
+<td style="text-align:right;">
+2700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Michael Thomas
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+26.03
+</td>
+<td style="text-align:right;">
+2.67
+</td>
+<td style="text-align:right;">
+8000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Courtland Sutton
+</td>
+<td style="text-align:left;">
+DEN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.53
+</td>
+<td style="text-align:right;">
+0.61
+</td>
+<td style="text-align:right;">
+5300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Kenny Stills
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+13.79
+</td>
+<td style="text-align:right;">
+1.63
+</td>
+<td style="text-align:right;">
+4700
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+1293
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+162.03
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+14.04
+</td>
+<td style="text-align:left;">
+Panthers
+</td>
+<td style="text-align:left;">
+CAR
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+8.32
+</td>
+<td style="text-align:right;">
+1.34
+</td>
+<td style="text-align:right;">
+2400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Russell Wilson
+</td>
+<td style="text-align:left;">
+SEA
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+24.75
+</td>
+<td style="text-align:right;">
+1.06
+</td>
+<td style="text-align:right;">
+7200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Devonta Freeman
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+15.60
+</td>
+<td style="text-align:right;">
+0.73
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Ty Johnson
+</td>
+<td style="text-align:left;">
+DET
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+15.89
+</td>
+<td style="text-align:right;">
+1.54
+</td>
+<td style="text-align:right;">
+4900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Hunter Henry
+</td>
+<td style="text-align:left;">
+LAC
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+13.90
+</td>
+<td style="text-align:right;">
+1.39
+</td>
+<td style="text-align:right;">
+4900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Michael Thomas
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+27.13
+</td>
+<td style="text-align:right;">
+2.67
+</td>
+<td style="text-align:right;">
+8000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Julio Jones
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+22.27
+</td>
+<td style="text-align:right;">
+1.94
+</td>
+<td style="text-align:right;">
+7700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T.Y. Hilton
+</td>
+<td style="text-align:left;">
+IND
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+22.29
+</td>
+<td style="text-align:right;">
+1.93
+</td>
+<td style="text-align:right;">
+6100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Demaryius Thomas
+</td>
+<td style="text-align:left;">
+NYJ
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+11.89
+</td>
+<td style="text-align:right;">
+1.44
+</td>
+<td style="text-align:right;">
+3300
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+4308
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+163.59
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+14.17
+</td>
+<td style="text-align:left;">
+Panthers
+</td>
+<td style="text-align:left;">
+CAR
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+9.10
+</td>
+<td style="text-align:right;">
+1.34
+</td>
+<td style="text-align:right;">
+2400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deshaun Watson
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+24.73
+</td>
+<td style="text-align:right;">
+1.21
+</td>
+<td style="text-align:right;">
+7100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Leonard Fournette
+</td>
+<td style="text-align:left;">
+JAC
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+24.40
+</td>
+<td style="text-align:right;">
+2.16
+</td>
+<td style="text-align:right;">
+7800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Devonta Freeman
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+16.32
+</td>
+<td style="text-align:right;">
+0.73
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Austin Hooper
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+21.80
+</td>
+<td style="text-align:right;">
+2.40
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Josh Hill
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+9.74
+</td>
+<td style="text-align:right;">
+1.78
+</td>
+<td style="text-align:right;">
+3200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Michael Thomas
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+26.96
+</td>
+<td style="text-align:right;">
+2.67
+</td>
+<td style="text-align:right;">
+8000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Courtland Sutton
+</td>
+<td style="text-align:left;">
+DEN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+15.12
+</td>
+<td style="text-align:right;">
+0.61
+</td>
+<td style="text-align:right;">
+5300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Boyd
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+15.43
+</td>
+<td style="text-align:right;">
+1.27
+</td>
+<td style="text-align:right;">
+5100
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+4540
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+165.11
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+14.73
+</td>
+<td style="text-align:left;">
+Raiders
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+5.69
+</td>
+<td style="text-align:right;">
+0.88
+</td>
+<td style="text-align:right;">
+1500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deshaun Watson
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+24.04
+</td>
+<td style="text-align:right;">
+1.21
+</td>
+<td style="text-align:right;">
+7100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Leonard Fournette
+</td>
+<td style="text-align:left;">
+JAC
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+27.03
+</td>
+<td style="text-align:right;">
+2.16
+</td>
+<td style="text-align:right;">
+7800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Devonta Freeman
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+17.41
+</td>
+<td style="text-align:right;">
+0.73
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Darren Waller
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+18.11
+</td>
+<td style="text-align:right;">
+1.73
+</td>
+<td style="text-align:right;">
+5900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Michael Thomas
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+26.46
+</td>
+<td style="text-align:right;">
+2.67
+</td>
+<td style="text-align:right;">
+8000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Kenny Golladay
+</td>
+<td style="text-align:left;">
+DET
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+20.33
+</td>
+<td style="text-align:right;">
+1.93
+</td>
+<td style="text-align:right;">
+6400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Mike Williams
+</td>
+<td style="text-align:left;">
+LAC
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.00
+</td>
+<td style="text-align:right;">
+2.02
+</td>
+<td style="text-align:right;">
+4000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Ted Ginn Jr. 
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+12.05
+</td>
+<td style="text-align:right;">
+1.41
+</td>
+<td style="text-align:right;">
+3700
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+4734
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+166.24
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+14.91
+</td>
+<td style="text-align:left;">
+Raiders
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+7.24
+</td>
+<td style="text-align:right;">
+0.88
+</td>
+<td style="text-align:right;">
+1500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deshaun Watson
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+24.08
+</td>
+<td style="text-align:right;">
+1.21
+</td>
+<td style="text-align:right;">
+7100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Leonard Fournette
+</td>
+<td style="text-align:left;">
+JAC
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+23.03
+</td>
+<td style="text-align:right;">
+2.16
+</td>
+<td style="text-align:right;">
+7800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Chris Carson
+</td>
+<td style="text-align:left;">
+SEA
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+21.65
+</td>
+<td style="text-align:right;">
+1.47
+</td>
+<td style="text-align:right;">
+7000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Austin Hooper
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+20.68
+</td>
+<td style="text-align:right;">
+2.40
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Jonnu Smith
+</td>
+<td style="text-align:left;">
+TEN
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+9.50
+</td>
+<td style="text-align:right;">
+0.91
+</td>
+<td style="text-align:right;">
+2800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Julio Jones
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+24.88
+</td>
+<td style="text-align:right;">
+1.94
+</td>
+<td style="text-align:right;">
+7700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Kenny Golladay
+</td>
+<td style="text-align:left;">
+DET
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+19.64
+</td>
+<td style="text-align:right;">
+1.93
+</td>
+<td style="text-align:right;">
+6400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Mike Williams
+</td>
+<td style="text-align:left;">
+LAC
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+15.53
+</td>
+<td style="text-align:right;">
+2.02
+</td>
+<td style="text-align:right;">
+4000
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+2597
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+168.16
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+16.63
+</td>
+<td style="text-align:left;">
+Raiders
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+6.25
+</td>
+<td style="text-align:right;">
+0.88
+</td>
+<td style="text-align:right;">
+1500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deshaun Watson
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+25.27
+</td>
+<td style="text-align:right;">
+1.21
+</td>
+<td style="text-align:right;">
+7100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Saquon Barkley
+</td>
+<td style="text-align:left;">
+NYG
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+25.66
+</td>
+<td style="text-align:right;">
+2.44
+</td>
+<td style="text-align:right;">
+8900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Le’Veon Bell
+</td>
+<td style="text-align:left;">
+NYJ
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+22.53
+</td>
+<td style="text-align:right;">
+1.83
+</td>
+<td style="text-align:right;">
+6900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Austin Hooper
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+19.34
+</td>
+<td style="text-align:right;">
+2.40
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Cameron Brate
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+8.97
+</td>
+<td style="text-align:right;">
+1.30
+</td>
+<td style="text-align:right;">
+2700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Michael Thomas
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+26.96
+</td>
+<td style="text-align:right;">
+2.67
+</td>
+<td style="text-align:right;">
+8000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T.Y. Hilton
+</td>
+<td style="text-align:left;">
+IND
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+22.58
+</td>
+<td style="text-align:right;">
+1.93
+</td>
+<td style="text-align:right;">
+6100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DaeSean Hamilton
+</td>
+<td style="text-align:left;">
+DEN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+10.59
+</td>
+<td style="text-align:right;">
+1.97
+</td>
+<td style="text-align:right;">
+3300
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+2454
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+169.32
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+18.14
+</td>
+<td style="text-align:left;">
+Jaguars
+</td>
+<td style="text-align:left;">
+JAC
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+11.52
+</td>
+<td style="text-align:right;">
+1.80
+</td>
+<td style="text-align:right;">
+2900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deshaun Watson
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+25.49
+</td>
+<td style="text-align:right;">
+1.21
+</td>
+<td style="text-align:right;">
+7100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Leonard Fournette
+</td>
+<td style="text-align:left;">
+JAC
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+22.71
+</td>
+<td style="text-align:right;">
+2.16
+</td>
+<td style="text-align:right;">
+7800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Devonta Freeman
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+16.70
+</td>
+<td style="text-align:right;">
+0.73
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Austin Hooper
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+21.23
+</td>
+<td style="text-align:right;">
+2.40
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Michael Thomas
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+26.07
+</td>
+<td style="text-align:right;">
+2.67
+</td>
+<td style="text-align:right;">
+8000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Jarvis Landry
+</td>
+<td style="text-align:left;">
+CLE
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.36
+</td>
+<td style="text-align:right;">
+2.18
+</td>
+<td style="text-align:right;">
+4800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Kenny Stills
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.93
+</td>
+<td style="text-align:right;">
+1.63
+</td>
+<td style="text-align:right;">
+4700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Alex Erickson
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+16.31
+</td>
+<td style="text-align:right;">
+3.36
+</td>
+<td style="text-align:right;">
+3700
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+2749
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+169.58
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+20.65
+</td>
+<td style="text-align:left;">
+Panthers
+</td>
+<td style="text-align:left;">
+CAR
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+8.93
+</td>
+<td style="text-align:right;">
+1.34
+</td>
+<td style="text-align:right;">
+2400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Sam Darnold
+</td>
+<td style="text-align:left;">
+NYJ
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+21.14
+</td>
+<td style="text-align:right;">
+3.57
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Le’Veon Bell
+</td>
+<td style="text-align:left;">
+NYJ
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+21.34
+</td>
+<td style="text-align:right;">
+1.83
+</td>
+<td style="text-align:right;">
+6900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Devonta Freeman
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+15.73
+</td>
+<td style="text-align:right;">
+0.73
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Austin Hooper
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+18.96
+</td>
+<td style="text-align:right;">
+2.40
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Michael Thomas
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+27.96
+</td>
+<td style="text-align:right;">
+2.67
+</td>
+<td style="text-align:right;">
+8000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Keenan Allen
+</td>
+<td style="text-align:left;">
+LAC
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+23.02
+</td>
+<td style="text-align:right;">
+4.21
+</td>
+<td style="text-align:right;">
+6400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+T.Y. Hilton
+</td>
+<td style="text-align:left;">
+IND
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+19.88
+</td>
+<td style="text-align:right;">
+1.93
+</td>
+<td style="text-align:right;">
+6100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DaeSean Hamilton
+</td>
+<td style="text-align:left;">
+DEN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+12.60
+</td>
+<td style="text-align:right;">
+1.97
+</td>
+<td style="text-align:right;">
+3300
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Week 8 optimal lineups can be found <a href="https://drive.google.com/open?id=1gQ4vuuYcamDT__EMoCdbOMIvLWFkIwjB">here</a></p>
+</div>
