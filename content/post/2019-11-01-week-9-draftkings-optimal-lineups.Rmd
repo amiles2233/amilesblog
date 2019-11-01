@@ -1,30 +1,30 @@
 ---
-title: Week 8 DraftKings Optimal Lineups
+title: Week 9 DraftKings Optimal Lineups
 author: Aaron Miles
-date: '2019-10-26'
-slug: week-8-draftkings-optimal-lineups
-summary: Week 8 Optimized Lineups for the DraftKings main slate. 
+date: '2019-11-01'
+slug: week-9-draftkings-optimal-lineups
 categories:
   - Daily Fantasy
-  - Deep Learning
   - Fantasy
   - Football
   - Sports
   - Optimization
 tags:
-  - data science
   - dfs
-  - optimization
   - nfl
-  - rstats
+  - optimization
   - viz
 keywords:
   - tech
 ---
 
-We are BACK with optimal lineups from week 8 simulations!
+We are BACK with optimal lineups from week 9 simulations!
 
-Better week last week, even with Devonta Freeman (who we had a lot of exposure to) picking an ill-advised fight. Kenny Golladay also flopped, but not due to a bad game script. If you tell me there's a game where the Lions will have 4 recieving TD's, I'll take him 9 times out of 10. All of those happened to go to MJJ, but that was a winning game script for Lions recievers. Just shows the importance of thinking through process over results.
+Solid week last week, I broke about even, Kenny Golladay finally put on a show, and I think I'm about to manually exclude Tyler Boyd from being placed in lineups. 
+
+No changes again, mainly due to work (that, you know, I get paid for), and working on Big Data Bowl, but I have been diving deep into modeling distributions, which I think can be a big help here.
+
+(P.S. Sorry for all the spelling errors last week, yikes)
 
 If you want to review the overall code for scraping and optimizing projections, the initial post is [here](https://amiles.netlify.com/2019/09/building-optimal-daily-fantasy-lineups-in-r/).
 
@@ -37,7 +37,7 @@ library(tidyverse)
 library(rPref)
 library(kableExtra)
 
-week <- 8
+week <- 9
 
 proj <- readRDS(paste0('week_', week, '_proj.RDS'))
 
@@ -100,15 +100,16 @@ sim_lu %>%
 Some of my observations: 
 
   
-* We've kind of seen QBs go back and forth between one heavy favorite and lots of parity. This is one of the heavy favorite weeks, with DeShaun Watson is over half of lineups. (Note, I removed Matt Ryan from being considered due to him being unlikely to play)
+* Interesting week this week, given the uncertainty around the Chiefs QB Situation. Also, most weeks the model hammers DeShaun Watson and Lamar Jackson, and neither are on the main slate. This week we're hammering a lot of Russell Wilson. The 'buy low' options at QB are Philip Rivers and Ryan Fitzpatrick
+
+
+* Lots of interchangability at the top of the RB pool, with McCaffrey, Chubb, Jones, Henry, and Bell all making string appearances.
   
-* Conversely this is a week with lots of parity at the RB spot. Devonta Freeman is in the most lineups, likely due to his modest price. They're still pricing Saquon Barkley VERY high.
+* Keenan Allen showing up a lot at WR, hopefully he breaks out, as he's tweeted. Both Bucs WRs showing up as well. Model doesn't have us really paying up for WR this week
   
-* Michael Thomas is the favorite at WR, showing up in almost 50% of lineups, followed up by a group of WRs. Interestingly Boyd has been a play for most weeks, these analysts are seemingly big on a rebound for him.
+* It's the usual story at TE, there are only a few worth playing, but less segmented than usual, with Doyle and Gesicki bridging the gap. 
   
-* It's the usual story at TE, there are only a few worth playing. Usually there's two tiers, but this week Austin Hooper looks to be a big favorite.
-  
-* Raiders, Jags and Panthers are the most common defenses most likely due to their price. Over the last few weeks, the model has selected the Defenses with the lowest prices.
+* Pathers, Redskins, and Dolphins at D again. As with most weeks, the model has selected the Defenses with the lowest prices.
   
 ### Who is getting placed in Lineups?
 
@@ -167,7 +168,7 @@ sim_lu %>%
 
 ```
 
-Pretty even flex configurations, with WRs being the most popular RB's the second, and TE's a distance third
+RB's lead flex configurations, WR's second, and TE's third.
 
 ### Pareto Lineups
 
@@ -209,4 +210,4 @@ psel(lu_df, low(lineup_sd) * high(lineup_pts)) %>%
 ```
 
 
-Week 8 optimal lineups can be found [here](https://drive.google.com/open?id=1gQ4vuuYcamDT__EMoCdbOMIvLWFkIwjB)
+Week 9 optimal lineups can be found [here](https://drive.google.com/open?id=1ANNV7ejZlYHYj8_T5Q8ul8rDcqdYj66T)
