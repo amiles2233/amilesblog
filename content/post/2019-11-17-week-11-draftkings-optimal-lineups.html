@@ -1,0 +1,3975 @@
+---
+title: Week 11 DraftKings Optimal Lineups
+author: Aaron Miles
+date: '2019-11-17'
+slug: week-11-draftkings-optimal-lineups
+categories:
+  - Daily Fantasy
+  - Fantasy
+  - Football
+  - Optimization
+  - Sports
+tags:
+  - data science
+  - dfs
+  - nfl
+  - optimization
+  - viz
+keywords:
+  - tech
+---
+
+<script src="/rmarkdown-libs/kePrint/kePrint.js"></script>
+<script src="/rmarkdown-libs/htmlwidgets/htmlwidgets.js"></script>
+<script src="/rmarkdown-libs/plotly-binding/plotly.js"></script>
+<script src="/rmarkdown-libs/typedarray/typedarray.min.js"></script>
+<script src="/rmarkdown-libs/jquery/jquery.min.js"></script>
+<link href="/rmarkdown-libs/crosstalk/css/crosstalk.css" rel="stylesheet" />
+<script src="/rmarkdown-libs/crosstalk/js/crosstalk.min.js"></script>
+<link href="/rmarkdown-libs/plotly-htmlwidgets-css/plotly-htmlwidgets.css" rel="stylesheet" />
+<script src="/rmarkdown-libs/plotly-main/plotly-latest.min.js"></script>
+
+
+<p>We are BACK with optimal lineups from week 11 simulations! (Better Late than Never!)</p>
+<p>Not much commentary this week, we have the sickness roaring through our household, and just had family visiting, so didn’t have much time/energy to make changes. However, I did add some plotly wrappers to some plots, inspired by Jonathan Regenstein’s blog post on <a href="https://rviews.rstudio.com/2019/10/21/ipo-exploration/">IPO exploration</a></p>
+<p>If you want to review the overall code for scraping and optimizing projections, the initial post is <a href="https://amiles.netlify.com/2019/09/building-optimal-daily-fantasy-lineups-in-r/">here</a>.</p>
+<div id="setup" class="section level3">
+<h3>Setup</h3>
+<pre class="r"><code>library(data.table)
+library(dtplyr)
+library(tidyverse)
+library(rPref)
+library(kableExtra)
+library(plotly)
+library(scales)
+library(labeling)
+
+
+week &lt;- 11
+
+proj &lt;- readRDS(paste0(&#39;week_&#39;, week, &#39;_proj.RDS&#39;))
+
+sal &lt;- read_csv(paste0(&#39;DKSalaries_wk_&#39;, week, &#39;.csv&#39;))</code></pre>
+<p>I’ll start with the optimized lineups pulled for the week, with the same details as last time: 10,000 lineups, using the standard deviation of projections, completely individually based (still working on that).</p>
+<pre class="r"><code>sim_lu &lt;- readRDS(paste0(&#39;sim_lineups_week_&#39;, week, &#39;.RDS&#39;)) %&gt;%
+  rename(pts_base=points) %&gt;%
+  select(lineup, Name, team, position, pts_base, pts_pred, sd_pts, Salary)
+
+glimpse(sim_lu)</code></pre>
+<pre><code>## Observations: 90,000
+## Variables: 8
+## Groups: Name [153]
+## $ lineup   &lt;int&gt; 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2,...
+## $ Name     &lt;chr&gt; &quot;Cardinals&quot;, &quot;Tyler Kroft&quot;, &quot;Leonard Fournette&quot;, &quot;Chr...
+## $ team     &lt;chr&gt; &quot;ARI&quot;, &quot;BUF&quot;, &quot;JAC&quot;, &quot;CAR&quot;, &quot;JAC&quot;, &quot;TBB&quot;, &quot;WAS&quot;, &quot;CAR...
+## $ position &lt;chr&gt; &quot;DST&quot;, &quot;TE&quot;, &quot;RB&quot;, &quot;RB&quot;, &quot;WR&quot;, &quot;WR&quot;, &quot;WR&quot;, &quot;QB&quot;, &quot;RB&quot;...
+## $ pts_base &lt;dbl&gt; 5.841981, 3.451956, 18.860242, 26.315687, 10.922359, ...
+## $ pts_pred &lt;dbl&gt; 7.115542, 9.499117, 24.304505, 30.701401, 14.070445, ...
+## $ sd_pts   &lt;dbl&gt; 1.4228211, 2.1754744, 1.9781903, 3.2835311, 1.6836537...
+## $ Salary   &lt;dbl&gt; 1500, 2800, 7900, 10500, 4500, 7300, 3300, 5300, 6900...</code></pre>
+<pre class="r"><code>sim_lu %&gt;%
+  filter(lineup&lt;=3) %&gt;%
+  arrange(lineup, position, desc(pts_pred)) %&gt;%
+  mutate_at(vars(pts_base, pts_pred, sd_pts), function(x) round(x, 2)) %&gt;%
+  knitr::kable() %&gt;%
+  kable_styling() %&gt;%
+  column_spec(1, bold=TRUE) %&gt;%
+  collapse_rows(columns = 1, valign = &#39;top&#39;) %&gt;%
+  scroll_box(height = &#39;600px&#39;, width = &#39;100%&#39;)</code></pre>
+<div style="border: 1px solid #ddd; padding: 0px; overflow-y: scroll; height:600px; overflow-x: scroll; width:100%; ">
+<table class="table" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+lineup
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+Name
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+team
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+position
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+pts_base
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+pts_pred
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+sd_pts
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+Salary
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+1
+</td>
+<td style="text-align:left;">
+Cardinals
+</td>
+<td style="text-align:left;">
+ARI
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+5.84
+</td>
+<td style="text-align:right;">
+7.12
+</td>
+<td style="text-align:right;">
+1.42
+</td>
+<td style="text-align:right;">
+1500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Kyle Allen
+</td>
+<td style="text-align:left;">
+CAR
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+17.93
+</td>
+<td style="text-align:right;">
+19.02
+</td>
+<td style="text-align:right;">
+0.67
+</td>
+<td style="text-align:right;">
+5300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Christian McCaffrey
+</td>
+<td style="text-align:left;">
+CAR
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+26.32
+</td>
+<td style="text-align:right;">
+30.70
+</td>
+<td style="text-align:right;">
+3.28
+</td>
+<td style="text-align:right;">
+10500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Leonard Fournette
+</td>
+<td style="text-align:left;">
+JAC
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+18.86
+</td>
+<td style="text-align:right;">
+24.30
+</td>
+<td style="text-align:right;">
+1.98
+</td>
+<td style="text-align:right;">
+7900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Josh Jacobs
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+17.81
+</td>
+<td style="text-align:right;">
+20.14
+</td>
+<td style="text-align:right;">
+2.50
+</td>
+<td style="text-align:right;">
+6900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Kroft
+</td>
+<td style="text-align:left;">
+BUF
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+3.45
+</td>
+<td style="text-align:right;">
+9.50
+</td>
+<td style="text-align:right;">
+2.18
+</td>
+<td style="text-align:right;">
+2800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Chris Godwin
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+17.01
+</td>
+<td style="text-align:right;">
+19.92
+</td>
+<td style="text-align:right;">
+1.99
+</td>
+<td style="text-align:right;">
+7300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dede Westbrook
+</td>
+<td style="text-align:left;">
+JAC
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+10.92
+</td>
+<td style="text-align:right;">
+14.07
+</td>
+<td style="text-align:right;">
+1.68
+</td>
+<td style="text-align:right;">
+4500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Trey Quinn
+</td>
+<td style="text-align:left;">
+WAS
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+6.93
+</td>
+<td style="text-align:right;">
+9.11
+</td>
+<td style="text-align:right;">
+1.41
+</td>
+<td style="text-align:right;">
+3300
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+2
+</td>
+<td style="text-align:left;">
+Cardinals
+</td>
+<td style="text-align:left;">
+ARI
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+5.84
+</td>
+<td style="text-align:right;">
+8.91
+</td>
+<td style="text-align:right;">
+1.42
+</td>
+<td style="text-align:right;">
+1500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Lamar Jackson
+</td>
+<td style="text-align:left;">
+BAL
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+24.49
+</td>
+<td style="text-align:right;">
+24.74
+</td>
+<td style="text-align:right;">
+1.58
+</td>
+<td style="text-align:right;">
+7700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Alvin Kamara
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+20.48
+</td>
+<td style="text-align:right;">
+21.58
+</td>
+<td style="text-align:right;">
+1.11
+</td>
+<td style="text-align:right;">
+7400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Raheem Mostert
+</td>
+<td style="text-align:left;">
+SFO
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+7.95
+</td>
+<td style="text-align:right;">
+10.98
+</td>
+<td style="text-align:right;">
+2.27
+</td>
+<td style="text-align:right;">
+3400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Darren Waller
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+14.66
+</td>
+<td style="text-align:right;">
+17.84
+</td>
+<td style="text-align:right;">
+2.73
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Julio Jones
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+19.91
+</td>
+<td style="text-align:right;">
+21.34
+</td>
+<td style="text-align:right;">
+1.80
+</td>
+<td style="text-align:right;">
+7500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Chris Godwin
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+17.01
+</td>
+<td style="text-align:right;">
+20.89
+</td>
+<td style="text-align:right;">
+1.99
+</td>
+<td style="text-align:right;">
+7300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Curtis Samuel
+</td>
+<td style="text-align:left;">
+CAR
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+12.57
+</td>
+<td style="text-align:right;">
+17.13
+</td>
+<td style="text-align:right;">
+1.24
+</td>
+<td style="text-align:right;">
+5300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deebo Samuel
+</td>
+<td style="text-align:left;">
+SFO
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+11.25
+</td>
+<td style="text-align:right;">
+13.57
+</td>
+<td style="text-align:right;">
+2.25
+</td>
+<td style="text-align:right;">
+4000
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+3
+</td>
+<td style="text-align:left;">
+Saints
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+8.52
+</td>
+<td style="text-align:right;">
+12.42
+</td>
+<td style="text-align:right;">
+1.80
+</td>
+<td style="text-align:right;">
+2900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Kyle Allen
+</td>
+<td style="text-align:left;">
+CAR
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+17.93
+</td>
+<td style="text-align:right;">
+19.01
+</td>
+<td style="text-align:right;">
+0.67
+</td>
+<td style="text-align:right;">
+5300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dalvin Cook
+</td>
+<td style="text-align:left;">
+MIN
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+22.93
+</td>
+<td style="text-align:right;">
+27.37
+</td>
+<td style="text-align:right;">
+2.14
+</td>
+<td style="text-align:right;">
+8900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Josh Jacobs
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+17.81
+</td>
+<td style="text-align:right;">
+19.03
+</td>
+<td style="text-align:right;">
+2.50
+</td>
+<td style="text-align:right;">
+6900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Brian Hill
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+13.69
+</td>
+<td style="text-align:right;">
+15.22
+</td>
+<td style="text-align:right;">
+2.42
+</td>
+<td style="text-align:right;">
+4800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Darren Waller
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+14.66
+</td>
+<td style="text-align:right;">
+15.78
+</td>
+<td style="text-align:right;">
+2.73
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+John Brown
+</td>
+<td style="text-align:left;">
+BUF
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.54
+</td>
+<td style="text-align:right;">
+18.37
+</td>
+<td style="text-align:right;">
+2.07
+</td>
+<td style="text-align:right;">
+6400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deebo Samuel
+</td>
+<td style="text-align:left;">
+SFO
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+11.25
+</td>
+<td style="text-align:right;">
+16.36
+</td>
+<td style="text-align:right;">
+2.25
+</td>
+<td style="text-align:right;">
+4000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Boyd
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.25
+</td>
+<td style="text-align:right;">
+13.57
+</td>
+<td style="text-align:right;">
+0.50
+</td>
+<td style="text-align:right;">
+5200
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div id="who-is-in-optimal-lineups" class="section level3">
+<h3>Who is in Optimal Lineups?</h3>
+<pre class="r"><code>ggplotly(
+  sim_lu %&gt;%
+  group_by(Name, position, Salary) %&gt;%
+  dplyr::summarize(lu=n_distinct(lineup)) %&gt;%
+  ungroup() %&gt;%
+  group_by(position) %&gt;%
+  top_n(10, lu) %&gt;%
+  ungroup() %&gt;%
+  arrange(position, desc(lu)) %&gt;%
+  mutate(Name=factor(Name),
+         Name=fct_reorder(Name, lu)) %&gt;%
+  ggplot(aes(x=Name, y=round(lu/1000, 2), fill=Salary, text=paste(Name, &#39;in&#39;, lu, &#39;lineups with&#39;, dollar(Salary), &#39;salary&#39;))) +
+  geom_bar(stat=&#39;identity&#39;) +
+  facet_wrap(~position, ncol = 3, scales=&#39;free_y&#39;) +
+  coord_flip() +
+  #scale_y_continuous(labels = scales::comma) +
+  scale_fill_viridis_c() +
+  xlab(&#39;&#39;) +
+  ylab(&#39;Lineups (Thousands)&#39;) +
+  ggtitle(&#39;Top 10 Players Present by Position&#39;) 
+) %&gt;% ggplotly(tooltip = &#39;text&#39;)</code></pre>
+<div id="htmlwidget-1" style="width:100%;height:480px;" class="plotly html-widget"></div>
+<script type="application/json" data-for="htmlwidget-1">{"x":{"data":[{"orientation":"h","width":0.899999999999999,"base":0,"x":[4.35],"y":[10],"text":"Name: Cardinals<br />round(lu/1000, 2): 4.35<br />Salary:  1500<br />Cardinals in 4351 lineups with $1,500 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(68,1,84,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x","yaxis":"y","hoverinfo":"text","frame":null},{"orientation":"h","width":0.899999999999999,"base":0,"x":[1.05],"y":[8],"text":"Name: Lions<br />round(lu/1000, 2): 1.05<br />Salary:  1800<br />Lions in 1048 lineups with $1,800 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(69,17,92,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x","yaxis":"y","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.2],"y":[5],"text":"Name: Texans<br />round(lu/1000, 2): 0.20<br />Salary:  2300<br />Texans in 203 lineups with $2,300 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(70,37,106,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x","yaxis":"y","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.18],"y":[4],"text":"Name: Dolphins<br />round(lu/1000, 2): 0.18<br />Salary:  2500<br />Dolphins in 179 lineups with $2,500 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(69,43,112,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x","yaxis":"y","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.83],"y":[7],"text":"Name: Redskins<br />round(lu/1000, 2): 0.83<br />Salary:  2800<br />Redskins in 834 lineups with $2,800 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(68,53,120,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x","yaxis":"y","hoverinfo":"text","frame":null},{"orientation":"h","width":0.899999999999999,"base":0,"x":[2.67],"y":[9],"text":"Name: Saints<br />round(lu/1000, 2): 2.67<br />Salary:  2900<br />Saints in 2667 lineups with $2,900 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(68,56,123,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x","yaxis":"y","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.11],"y":[2],"text":"Name: Panthers<br />round(lu/1000, 2): 0.11<br />Salary:  3000<br />Panthers in 111 lineups with $3,000 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(67,59,126,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x","yaxis":"y","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.14],"y":[3],"text":"Name: Jets<br />round(lu/1000, 2): 0.14<br />Salary:  3100<br />Jets in 145 lineups with $3,100 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(67,62,129,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x","yaxis":"y","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.26],"y":[6],"text":"Name: Patriots<br />round(lu/1000, 2): 0.26<br />Salary:  3500<br />Patriots in 261 lineups with $3,500 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(64,74,136,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x","yaxis":"y","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.05],"y":[1],"text":"Name: Bills<br />round(lu/1000, 2): 0.05<br />Salary:  3800<br />Bills in 54 lineups with $3,800 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(62,83,137,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x","yaxis":"y","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.14],"y":[2],"text":"Name: Ryan Finley<br />round(lu/1000, 2): 0.14<br />Salary:  5000<br />Ryan Finley in 136 lineups with $5,000 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(45,117,142,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x2","yaxis":"y2","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.15],"y":[3],"text":"Name: Ryan Fitzpatrick<br />round(lu/1000, 2): 0.15<br />Salary:  5100<br />Ryan Fitzpatrick in 153 lineups with $5,100 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(42,120,142,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x2","yaxis":"y2","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.52],"y":[6],"text":"Name: Kyle Allen<br />round(lu/1000, 2): 0.52<br />Salary:  5300<br />Kyle Allen in 525 lineups with $5,300 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(43,125,141,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x2","yaxis":"y2","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.54],"y":[7],"text":"Name: Matt Ryan<br />round(lu/1000, 2): 0.54<br />Salary:  6200<br />Matt Ryan in 541 lineups with $6,200 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(42,149,136,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x2","yaxis":"y2","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.1],"y":[1],"text":"Name: Tom Brady<br />round(lu/1000, 2): 0.10<br />Salary:  6400<br />Tom Brady in 99 lineups with $6,400 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(41,154,135,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x2","yaxis":"y2","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.4],"y":[5],"text":"Name: Jameis Winston<br />round(lu/1000, 2): 0.40<br />Salary:  6500<br />Jameis Winston in 396 lineups with $6,500 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(40,157,135,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x2","yaxis":"y2","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.22],"y":[4],"text":"Name: Josh Allen<br />round(lu/1000, 2): 0.22<br />Salary:  6600<br />Josh Allen in 216 lineups with $6,600 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(38,160,134,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x2","yaxis":"y2","hoverinfo":"text","frame":null},{"orientation":"h","width":0.899999999999999,"base":0,"x":[2.69],"y":[9],"text":"Name: Dak Prescott<br />round(lu/1000, 2): 2.69<br />Salary:  6700<br />Dak Prescott in 2689 lineups with $6,700 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(37,163,133,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x2","yaxis":"y2","hoverinfo":"text","frame":null},{"orientation":"h","width":0.899999999999999,"base":0,"x":[1.92],"y":[8],"text":"Name: Deshaun Watson<br />round(lu/1000, 2): 1.92<br />Salary:  6800<br />Deshaun Watson in 1919 lineups with $6,800 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(36,165,133,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x2","yaxis":"y2","hoverinfo":"text","frame":null},{"orientation":"h","width":0.899999999999999,"base":0,"x":[3.17],"y":[10],"text":"Name: Lamar Jackson<br />round(lu/1000, 2): 3.17<br />Salary:  7700<br />Lamar Jackson in 3173 lineups with $7,700 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(85,186,112,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x2","yaxis":"y2","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[1.01],"y":[3],"text":"Name: Raheem Mostert<br />round(lu/1000, 2): 1.01<br />Salary:  3400<br />Raheem Mostert in 1015 lineups with $3,400 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(65,71,135,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x3","yaxis":"y3","hoverinfo":"text","frame":null},{"orientation":"h","width":0.899999999999999,"base":0,"x":[4.17],"y":[8],"text":"Name: Miles Sanders<br />round(lu/1000, 2): 4.17<br />Salary:  4100<br />Miles Sanders in 4173 lineups with $4,100 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(60,91,138,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x3","yaxis":"y3","hoverinfo":"text","frame":null},{"orientation":"h","width":0.899999999999999,"base":0,"x":[4.2],"y":[9],"text":"Name: Brian Hill<br />round(lu/1000, 2): 4.20<br />Salary:  4800<br />Brian Hill in 4199 lineups with $4,800 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(49,111,141,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x3","yaxis":"y3","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[1.11],"y":[4],"text":"Name: Tevin Coleman<br />round(lu/1000, 2): 1.11<br />Salary:  6100<br />Tevin Coleman in 1109 lineups with $6,100 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(43,146,137,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x3","yaxis":"y3","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[2.68],"y":[6],"text":"Name: Josh Jacobs<br />round(lu/1000, 2): 2.68<br />Salary:  6900<br />Josh Jacobs in 2680 lineups with $6,900 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(34,168,132,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x3","yaxis":"y3","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.94],"y":[2],"text":"Name: Le'Veon Bell<br />round(lu/1000, 2): 0.94<br />Salary:  7200<br />Le'Veon Bell in 938 lineups with $7,200 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(59,175,125,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x3","yaxis":"y3","hoverinfo":"text","frame":null},{"orientation":"h","width":0.899999999999999,"base":0,"x":[4.87],"y":[10],"text":"Name: Alvin Kamara<br />round(lu/1000, 2): 4.87<br />Salary:  7400<br />Alvin Kamara in 4871 lineups with $7,400 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(71,179,120,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x3","yaxis":"y3","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.76],"y":[1],"text":"Name: Leonard Fournette<br />round(lu/1000, 2): 0.76<br />Salary:  7900<br />Leonard Fournette in 758 lineups with $7,900 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(94,190,106,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x3","yaxis":"y3","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[2.79],"y":[7],"text":"Name: Dalvin Cook<br />round(lu/1000, 2): 2.79<br />Salary:  8900<br />Dalvin Cook in 2794 lineups with $8,900 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(139,212,78,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x3","yaxis":"y3","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[2.58],"y":[5],"text":"Name: Christian McCaffrey<br />round(lu/1000, 2): 2.58<br />Salary: 10500<br />Christian McCaffrey in 2582 lineups with $10,500 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(253,231,37,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x3","yaxis":"y3","hoverinfo":"text","frame":null},{"orientation":"h","width":[0.9,0.9],"base":[0,0],"x":[0.24,0.25],"y":[1,2],"text":["Name: Dawson Knox<br />round(lu/1000, 2): 0.24<br />Salary:  3000<br />Dawson Knox in 245 lineups with $3,000 salary","Name: Luke Stocker<br />round(lu/1000, 2): 0.25<br />Salary:  3000<br />Luke Stocker in 254 lineups with $3,000 salary"],"type":"bar","marker":{"autocolorscale":false,"color":"rgba(67,59,126,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x","yaxis":"y4","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.4],"y":[6],"text":"Name: Irv Smith Jr.<br />round(lu/1000, 2): 0.40<br />Salary:  3100<br />Irv Smith Jr. in 395 lineups with $3,100 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(67,62,129,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x","yaxis":"y4","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.31],"y":[4],"text":"Name: Dallas Goedert<br />round(lu/1000, 2): 0.31<br />Salary:  3200<br />Dallas Goedert in 310 lineups with $3,200 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(66,65,132,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x","yaxis":"y4","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.38],"y":[5],"text":"Name: Ross Dwelley<br />round(lu/1000, 2): 0.38<br />Salary:  3400<br />Ross Dwelley in 380 lineups with $3,400 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(65,71,135,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x","yaxis":"y4","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.29],"y":[3],"text":"Name: Mike Gesicki<br />round(lu/1000, 2): 0.29<br />Salary:  3500<br />Mike Gesicki in 290 lineups with $3,500 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(64,74,136,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x","yaxis":"y4","hoverinfo":"text","frame":null},{"orientation":"h","width":0.899999999999999,"base":0,"x":[3.1],"y":[9],"text":"Name: Eric Ebron<br />round(lu/1000, 2): 3.10<br />Salary:  3600<br />Eric Ebron in 3103 lineups with $3,600 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(64,77,136,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x","yaxis":"y4","hoverinfo":"text","frame":null},{"orientation":"h","width":0.899999999999999,"base":0,"x":[1.03],"y":[8],"text":"Name: Greg Olsen<br />round(lu/1000, 2): 1.03<br />Salary:  3900<br />Greg Olsen in 1029 lineups with $3,900 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(62,86,138,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x","yaxis":"y4","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.84],"y":[7],"text":"Name: Zach Ertz<br />round(lu/1000, 2): 0.84<br />Salary:  5000<br />Zach Ertz in 840 lineups with $5,000 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(45,117,142,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x","yaxis":"y4","hoverinfo":"text","frame":null},{"orientation":"h","width":0.899999999999999,"base":0,"x":[3.96],"y":[10],"text":"Name: Darren Waller<br />round(lu/1000, 2): 3.96<br />Salary:  5500<br />Darren Waller in 3955 lineups with $5,500 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(43,130,140,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x","yaxis":"y4","hoverinfo":"text","frame":null},{"orientation":"h","width":0.899999999999999,"base":0,"x":[4.58],"y":[10],"text":"Name: Deebo Samuel<br />round(lu/1000, 2): 4.58<br />Salary:  4000<br />Deebo Samuel in 4576 lineups with $4,000 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(61,89,138,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x2","yaxis":"y5","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[1.36],"y":[5],"text":"Name: Dede Westbrook<br />round(lu/1000, 2): 1.36<br />Salary:  4500<br />Dede Westbrook in 1361 lineups with $4,500 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(55,103,140,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x2","yaxis":"y5","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[1.05],"y":[3],"text":"Name: Kenny Stills<br />round(lu/1000, 2): 1.05<br />Salary:  4600<br />Kenny Stills in 1046 lineups with $4,600 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(53,106,140,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x2","yaxis":"y5","hoverinfo":"text","frame":null},{"orientation":"h","width":0.899999999999999,"base":0,"x":[3.68],"y":[8],"text":"Name: Tyler Boyd<br />round(lu/1000, 2): 3.68<br />Salary:  5200<br />Tyler Boyd in 3679 lineups with $5,200 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(43,123,142,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x2","yaxis":"y5","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[0.87],"y":[1],"text":"Name: Chris Godwin<br />round(lu/1000, 2): 0.87<br />Salary:  7300<br />Chris Godwin in 866 lineups with $7,300 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(65,177,122,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x2","yaxis":"y5","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[2.21],"y":[7],"text":"Name: Mike Evans<br />round(lu/1000, 2): 2.21<br />Salary:  7400<br />Mike Evans in 2207 lineups with $7,400 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(71,179,120,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x2","yaxis":"y5","hoverinfo":"text","frame":null},{"orientation":"h","width":0.899999999999999,"base":0,"x":[4.51],"y":[9],"text":"Name: Julio Jones<br />round(lu/1000, 2): 4.51<br />Salary:  7500<br />Julio Jones in 4515 lineups with $7,500 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(76,181,117,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x2","yaxis":"y5","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[1.7],"y":[6],"text":"Name: Amari Cooper<br />round(lu/1000, 2): 1.70<br />Salary:  7700<br />Amari Cooper in 1705 lineups with $7,700 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(85,186,112,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x2","yaxis":"y5","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[1.02],"y":[2],"text":"Name: DeAndre Hopkins<br />round(lu/1000, 2): 1.02<br />Salary:  8100<br />DeAndre Hopkins in 1022 lineups with $8,100 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(101,195,100,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x2","yaxis":"y5","hoverinfo":"text","frame":null},{"orientation":"h","width":0.9,"base":0,"x":[1.24],"y":[4],"text":"Name: Michael Thomas<br />round(lu/1000, 2): 1.24<br />Salary:  9900<br />Michael Thomas in 1242 lineups with $9,900 salary","type":"bar","marker":{"autocolorscale":false,"color":"rgba(213,224,56,1)","line":{"width":1.88976377952756,"color":"transparent"}},"showlegend":false,"xaxis":"x2","yaxis":"y5","hoverinfo":"text","frame":null},{"x":[1],"y":[0],"name":"99_ebcb6047c8686c85626856b0f78d2d6e","type":"scatter","mode":"markers","opacity":0,"hoverinfo":"skip","showlegend":false,"marker":{"color":[0,1],"colorscale":[[0,"#440154"],[0.0526315789473684,"#451961"],[0.105263157894737,"#452A6E"],[0.157894736842105,"#44397C"],[0.210526315789474,"#414787"],[0.263157894736842,"#3E5589"],[0.315789473684211,"#39628B"],[0.368421052631579,"#31708D"],[0.421052631578947,"#2B7D8D"],[0.473684210526316,"#2C898B"],[0.526315789473684,"#2A9688"],[0.578947368421053,"#25A385"],[0.631578947368421,"#3AAE7D"],[0.684210526315789,"#53B971"],[0.736842105263158,"#67C464"],[0.789473684210526,"#77CF54"],[0.842105263157895,"#9AD64A"],[0.894736842105263,"#BDDC41"],[0.947368421052632,"#DEE235"],[1,"#FDE725"]],"colorbar":{"bgcolor":"rgba(255,255,255,1)","bordercolor":"transparent","borderwidth":1.88976377952756,"thickness":23.04,"title":"Salary","titlefont":{"color":"rgba(0,0,0,1)","family":"","size":14.6118721461187},"tickmode":"array","ticktext":["2000","4000","6000","8000","10000"],"tickvals":[0.0555555555555556,0.277777777777778,0.5,0.722222222222222,0.944444444444444],"tickfont":{"color":"rgba(0,0,0,1)","family":"","size":11.689497716895},"ticklen":2,"len":0.5}},"xaxis":"x","yaxis":"y","frame":null}],"layout":{"margin":{"t":55.4520547945205,"r":7.30593607305936,"b":40.1826484018265,"l":63.5616438356165},"plot_bgcolor":"rgba(235,235,235,1)","paper_bgcolor":"rgba(255,255,255,1)","font":{"color":"rgba(0,0,0,1)","family":"","size":14.6118721461187},"title":{"text":"Top 10 Players Present by Position","font":{"color":"rgba(0,0,0,1)","family":"","size":17.5342465753425},"x":0,"xref":"paper"},"xaxis":{"domain":[0,0.266915732669157],"automargin":true,"type":"linear","autorange":false,"range":[-0.2435,5.1135],"tickmode":"array","ticktext":["0","1","2","3","4","5"],"tickvals":[0,1,2,3,4,5],"categoryorder":"array","categoryarray":["0","1","2","3","4","5"],"nticks":null,"ticks":"outside","tickcolor":"rgba(51,51,51,1)","ticklen":3.65296803652968,"tickwidth":0.66417600664176,"showticklabels":true,"tickfont":{"color":"rgba(77,77,77,1)","family":"","size":11.689497716895},"tickangle":-0,"showline":false,"linecolor":null,"linewidth":0,"showgrid":true,"gridcolor":"rgba(255,255,255,1)","gridwidth":0.66417600664176,"zeroline":false,"anchor":"y4","title":"","hoverformat":".2f"},"annotations":[{"text":"Lineups (Thousands)","x":0.5,"y":-0.0176940639269406,"showarrow":false,"ax":0,"ay":0,"font":{"color":"rgba(0,0,0,1)","family":"","size":14.6118721461187},"xref":"paper","yref":"paper","textangle":-0,"xanchor":"center","yanchor":"top","annotationType":"axis"},{"text":"DST","x":0.133457866334579,"y":1,"showarrow":false,"ax":0,"ay":0,"font":{"color":"rgba(26,26,26,1)","family":"","size":11.689497716895},"xref":"paper","yref":"paper","textangle":-0,"xanchor":"center","yanchor":"bottom"},{"text":"QB","x":0.5,"y":1,"showarrow":false,"ax":0,"ay":0,"font":{"color":"rgba(26,26,26,1)","family":"","size":11.689497716895},"xref":"paper","yref":"paper","textangle":-0,"xanchor":"center","yanchor":"bottom"},{"text":"RB","x":0.866542133665421,"y":1,"showarrow":false,"ax":0,"ay":0,"font":{"color":"rgba(26,26,26,1)","family":"","size":11.689497716895},"xref":"paper","yref":"paper","textangle":-0,"xanchor":"center","yanchor":"bottom"},{"text":"TE","x":0.133457866334579,"y":0.485159817351598,"showarrow":false,"ax":0,"ay":0,"font":{"color":"rgba(26,26,26,1)","family":"","size":11.689497716895},"xref":"paper","yref":"paper","textangle":-0,"xanchor":"center","yanchor":"bottom"},{"text":"WR","x":0.5,"y":0.485159817351598,"showarrow":false,"ax":0,"ay":0,"font":{"color":"rgba(26,26,26,1)","family":"","size":11.689497716895},"xref":"paper","yref":"paper","textangle":-0,"xanchor":"center","yanchor":"bottom"}],"yaxis":{"domain":[0.514840182648402,1],"automargin":true,"type":"linear","autorange":false,"range":[0.4,10.6],"tickmode":"array","ticktext":["Bills","Panthers","Jets","Dolphins","Texans","Patriots","Redskins","Lions","Saints","Cardinals"],"tickvals":[1,2,3,4,5,6,7,8,9,10],"categoryorder":"array","categoryarray":["Bills","Panthers","Jets","Dolphins","Texans","Patriots","Redskins","Lions","Saints","Cardinals"],"nticks":null,"ticks":"outside","tickcolor":"rgba(51,51,51,1)","ticklen":3.65296803652968,"tickwidth":0.66417600664176,"showticklabels":true,"tickfont":{"color":"rgba(77,77,77,1)","family":"","size":11.689497716895},"tickangle":-0,"showline":false,"linecolor":null,"linewidth":0,"showgrid":true,"gridcolor":"rgba(255,255,255,1)","gridwidth":0.66417600664176,"zeroline":false,"anchor":"x","title":"","hoverformat":".2f"},"shapes":[{"type":"rect","fillcolor":null,"line":{"color":null,"width":0,"linetype":[]},"yref":"paper","xref":"paper","x0":0,"x1":0.266915732669157,"y0":0.514840182648402,"y1":1},{"type":"rect","fillcolor":"rgba(217,217,217,1)","line":{"color":"transparent","width":0.66417600664176,"linetype":"solid"},"yref":"paper","xref":"paper","x0":0,"x1":0.266915732669157,"y0":0,"y1":23.37899543379,"yanchor":1,"ysizemode":"pixel"},{"type":"rect","fillcolor":null,"line":{"color":null,"width":0,"linetype":[]},"yref":"paper","xref":"paper","x0":0.399750933997509,"x1":0.600249066002491,"y0":0.514840182648402,"y1":1},{"type":"rect","fillcolor":"rgba(217,217,217,1)","line":{"color":"transparent","width":0.66417600664176,"linetype":"solid"},"yref":"paper","xref":"paper","x0":0.399750933997509,"x1":0.600249066002491,"y0":0,"y1":23.37899543379,"yanchor":1,"ysizemode":"pixel"},{"type":"rect","fillcolor":null,"line":{"color":null,"width":0,"linetype":[]},"yref":"paper","xref":"paper","x0":0.733084267330843,"x1":1,"y0":0.514840182648402,"y1":1},{"type":"rect","fillcolor":"rgba(217,217,217,1)","line":{"color":"transparent","width":0.66417600664176,"linetype":"solid"},"yref":"paper","xref":"paper","x0":0.733084267330843,"x1":1,"y0":0,"y1":23.37899543379,"yanchor":1,"ysizemode":"pixel"},{"type":"rect","fillcolor":null,"line":{"color":null,"width":0,"linetype":[]},"yref":"paper","xref":"paper","x0":0,"x1":0.266915732669157,"y0":0,"y1":0.485159817351598},{"type":"rect","fillcolor":"rgba(217,217,217,1)","line":{"color":"transparent","width":0.66417600664176,"linetype":"solid"},"yref":"paper","xref":"paper","x0":0,"x1":0.266915732669157,"y0":0,"y1":23.37899543379,"yanchor":0.485159817351598,"ysizemode":"pixel"},{"type":"rect","fillcolor":null,"line":{"color":null,"width":0,"linetype":[]},"yref":"paper","xref":"paper","x0":0.399750933997509,"x1":0.600249066002491,"y0":0,"y1":0.485159817351598},{"type":"rect","fillcolor":"rgba(217,217,217,1)","line":{"color":"transparent","width":0.66417600664176,"linetype":"solid"},"yref":"paper","xref":"paper","x0":0.399750933997509,"x1":0.600249066002491,"y0":0,"y1":23.37899543379,"yanchor":0.485159817351598,"ysizemode":"pixel"}],"xaxis2":{"type":"linear","autorange":false,"range":[-0.2435,5.1135],"tickmode":"array","ticktext":["0","1","2","3","4","5"],"tickvals":[0,1,2,3,4,5],"categoryorder":"array","categoryarray":["0","1","2","3","4","5"],"nticks":null,"ticks":"outside","tickcolor":"rgba(51,51,51,1)","ticklen":3.65296803652968,"tickwidth":0.66417600664176,"showticklabels":true,"tickfont":{"color":"rgba(77,77,77,1)","family":"","size":11.689497716895},"tickangle":-0,"showline":false,"linecolor":null,"linewidth":0,"showgrid":true,"domain":[0.399750933997509,0.600249066002491],"gridcolor":"rgba(255,255,255,1)","gridwidth":0.66417600664176,"zeroline":false,"anchor":"y5","title":"","hoverformat":".2f"},"yaxis2":{"type":"linear","autorange":false,"range":[0.4,10.6],"tickmode":"array","ticktext":["Tom Brady","Ryan Finley","Ryan Fitzpatrick","Josh Allen","Jameis Winston","Kyle Allen","Matt Ryan","Deshaun Watson","Dak Prescott","Lamar Jackson"],"tickvals":[1,2,3,4,5,6,7,8,9,10],"categoryorder":"array","categoryarray":["Tom Brady","Ryan Finley","Ryan Fitzpatrick","Josh Allen","Jameis Winston","Kyle Allen","Matt Ryan","Deshaun Watson","Dak Prescott","Lamar Jackson"],"nticks":null,"ticks":"outside","tickcolor":"rgba(51,51,51,1)","ticklen":3.65296803652968,"tickwidth":0.66417600664176,"showticklabels":true,"tickfont":{"color":"rgba(77,77,77,1)","family":"","size":11.689497716895},"tickangle":-0,"showline":false,"linecolor":null,"linewidth":0,"showgrid":true,"domain":[0.514840182648402,1],"gridcolor":"rgba(255,255,255,1)","gridwidth":0.66417600664176,"zeroline":false,"anchor":"x2","title":"","hoverformat":".2f"},"xaxis3":{"type":"linear","autorange":false,"range":[-0.2435,5.1135],"tickmode":"array","ticktext":["0","1","2","3","4","5"],"tickvals":[0,1,2,3,4,5],"categoryorder":"array","categoryarray":["0","1","2","3","4","5"],"nticks":null,"ticks":"outside","tickcolor":"rgba(51,51,51,1)","ticklen":3.65296803652968,"tickwidth":0.66417600664176,"showticklabels":true,"tickfont":{"color":"rgba(77,77,77,1)","family":"","size":11.689497716895},"tickangle":-0,"showline":false,"linecolor":null,"linewidth":0,"showgrid":true,"domain":[0.733084267330843,1],"gridcolor":"rgba(255,255,255,1)","gridwidth":0.66417600664176,"zeroline":false,"anchor":"y3","title":"","hoverformat":".2f"},"yaxis3":{"type":"linear","autorange":false,"range":[0.4,10.6],"tickmode":"array","ticktext":["Leonard Fournette","Le'Veon Bell","Raheem Mostert","Tevin Coleman","Christian McCaffrey","Josh Jacobs","Dalvin Cook","Miles Sanders","Brian Hill","Alvin Kamara"],"tickvals":[1,2,3,4,5,6,7,8,9,10],"categoryorder":"array","categoryarray":["Leonard Fournette","Le'Veon Bell","Raheem Mostert","Tevin Coleman","Christian McCaffrey","Josh Jacobs","Dalvin Cook","Miles Sanders","Brian Hill","Alvin Kamara"],"nticks":null,"ticks":"outside","tickcolor":"rgba(51,51,51,1)","ticklen":3.65296803652968,"tickwidth":0.66417600664176,"showticklabels":true,"tickfont":{"color":"rgba(77,77,77,1)","family":"","size":11.689497716895},"tickangle":-0,"showline":false,"linecolor":null,"linewidth":0,"showgrid":true,"domain":[0.514840182648402,1],"gridcolor":"rgba(255,255,255,1)","gridwidth":0.66417600664176,"zeroline":false,"anchor":"x3","title":"","hoverformat":".2f"},"yaxis4":{"type":"linear","autorange":false,"range":[0.4,10.6],"tickmode":"array","ticktext":["Dawson Knox","Luke Stocker","Mike Gesicki","Dallas Goedert","Ross Dwelley","Irv Smith Jr.","Zach Ertz","Greg Olsen","Eric Ebron","Darren Waller"],"tickvals":[1,2,3,4,5,6,7,8,9,10],"categoryorder":"array","categoryarray":["Dawson Knox","Luke Stocker","Mike Gesicki","Dallas Goedert","Ross Dwelley","Irv Smith Jr.","Zach Ertz","Greg Olsen","Eric Ebron","Darren Waller"],"nticks":null,"ticks":"outside","tickcolor":"rgba(51,51,51,1)","ticklen":3.65296803652968,"tickwidth":0.66417600664176,"showticklabels":true,"tickfont":{"color":"rgba(77,77,77,1)","family":"","size":11.689497716895},"tickangle":-0,"showline":false,"linecolor":null,"linewidth":0,"showgrid":true,"domain":[0,0.485159817351598],"gridcolor":"rgba(255,255,255,1)","gridwidth":0.66417600664176,"zeroline":false,"anchor":"x","title":"","hoverformat":".2f"},"yaxis5":{"type":"linear","autorange":false,"range":[0.4,10.6],"tickmode":"array","ticktext":["Chris Godwin","DeAndre Hopkins","Kenny Stills","Michael Thomas","Dede Westbrook","Amari Cooper","Mike Evans","Tyler Boyd","Julio Jones","Deebo Samuel"],"tickvals":[1,2,3,4,5,6,7,8,9,10],"categoryorder":"array","categoryarray":["Chris Godwin","DeAndre Hopkins","Kenny Stills","Michael Thomas","Dede Westbrook","Amari Cooper","Mike Evans","Tyler Boyd","Julio Jones","Deebo Samuel"],"nticks":null,"ticks":"outside","tickcolor":"rgba(51,51,51,1)","ticklen":3.65296803652968,"tickwidth":0.66417600664176,"showticklabels":true,"tickfont":{"color":"rgba(77,77,77,1)","family":"","size":11.689497716895},"tickangle":-0,"showline":false,"linecolor":null,"linewidth":0,"showgrid":true,"domain":[0,0.485159817351598],"gridcolor":"rgba(255,255,255,1)","gridwidth":0.66417600664176,"zeroline":false,"anchor":"x2","title":"","hoverformat":".2f"},"showlegend":false,"legend":{"bgcolor":"rgba(255,255,255,1)","bordercolor":"transparent","borderwidth":1.88976377952756,"font":{"color":"rgba(0,0,0,1)","family":"","size":11.689497716895}},"hovermode":"closest","barmode":"relative"},"config":{"doubleClick":"reset","showSendToCloud":false},"source":"A","attrs":{"2dc412c679ad":{"x":{},"y":{},"fill":{},"text":{},"type":"bar"}},"cur_data":"2dc412c679ad","visdat":{"2dc412c679ad":["function (y) ","x"]},"highlight":{"on":"plotly_click","persistent":false,"dynamic":false,"selectize":false,"opacityDim":0.2,"selected":{"opacity":1},"debounce":0},"shinyEvents":["plotly_hover","plotly_click","plotly_selected","plotly_relayout","plotly_brushed","plotly_brushing","plotly_clickannotation","plotly_doubleclick","plotly_deselect","plotly_afterplot","plotly_sunburstclick"],"base_url":"https://plot.ly"},"evals":[],"jsHooks":[]}</script>
+<p>(Still new to Plotly, sorry about the weird facet widths and funky labels, but since I’m short on time, I thought the benefit of interactivity was worth the funky formatting)</p>
+<p>Some of my observations:</p>
+<ul>
+<li><p>A top-heavy week at QB, we’re still riding Lamar Jackson and Deshaun Watson, with Dak Prescott thrown in there</p></li>
+<li><p>Alvin Kamar is the top RB represented, with Brian Hill and Miles Sanders being the value plays.</p></li>
+<li><p>They really upped Michael Thomas’ salary, so we won’t be riding him as hard this week. Deebo Samuel is the most represented WR this week, due to low salary. Hopefully he fixes the drops this week</p></li>
+<li><p>Second week in a row with a heavy TE favorite, this week being Darren Waller. Eric Ebron is the second most represented.</p></li>
+<li><p>Cardinals, Saints, and Lions D Most Represented</p></li>
+</ul>
+</div>
+<div id="who-is-getting-placed-in-lineups" class="section level3">
+<h3>Who is getting placed in Lineups?</h3>
+<p>DraftKings provides scoring for 379 players this week, but only 153 make it into optimized lineups. Why is that? To determine, I’ll plot projected points vs salary, colored by whether or not they make it into optimized lineups, and sized by their projection standard deviation</p>
+<pre class="r"><code>plyr_lu &lt;- sim_lu %&gt;%
+  group_by(Name, position) %&gt;%
+  dplyr::summarize(lu=n_distinct(lineup)) %&gt;%
+  ungroup() 
+
+ggplotly(
+proj %&gt;% 
+  dplyr::filter(avg_type==&#39;weighted&#39;) %&gt;%
+  mutate(Name = ifelse(pos==&quot;DST&quot;, last_name, paste(first_name, last_name))) %&gt;%
+  inner_join(sal, by=c(&quot;Name&quot;)) %&gt;%
+  select(Name, team, position, points, Salary, sd_pts) %&gt;%
+  left_join(plyr_lu, by=&#39;Name&#39;) %&gt;%
+  replace_na(list(lu=0)) %&gt;%
+  mutate(lu_bin=ifelse(lu==0, &#39;0 Lineups&#39;, &#39;&gt;=1 Lineups&#39;),
+         lu_5=cut(lu,5, labels = FALSE)) %&gt;%
+  ggplot(aes(x=Salary, y=points, color=lu_bin, size=sd_pts, text=Name)) +
+  geom_point() +
+  theme_minimal() +
+  scale_color_manual(values = c(&#39;red&#39;, &#39;blue&#39;), name=&quot;&quot;) +
+  geom_smooth(inherit.aes = FALSE, aes(x=Salary, y=points), method = &#39;lm&#39;) +
+  ylab(&#39;Projected Points&#39;) +
+  xlab(&#39;Salary&#39;) +
+  ggtitle(&#39;Who makes it into Optimized Lineups?&#39;) +
+  scale_x_continuous(labels=scales::dollar))</code></pre>
+<div id="htmlwidget-2" style="width:672px;height:480px;" class="plotly html-widget"></div>
+<script type="application/json" data-for="htmlwidget-2">{"x":{"data":[{"x":[3800,3200,2500,3500,3100,2100,3100,2400,3300,3600,2700,1500,2800,1800,3400,2600,3000,2900,4000,2300,6900,6400,3700,2900,5100,4500,4100,3900,6200,4200,4400,7600,3900,7500,4300,3000,5600,6300,5100,4700,3800,7200,3300,4600,8100,3700,5000,3200,3800,4000,3000,5500,6100,7400,3500,3600,5400,6400,3400,3200,3300,6500,6100,4000,5100,7700,4700,4000,3000,6900,3500,2800,5500,2700,5400,3000,3400,3000,2600,5400,6700,4600,9000,5400,3700,5200,9900,3000,3300,4200,3900,4000,4600,6800,8900,7900,10500,5500,7400,5300,4500,7300,3300,3600,2800,4800,6700,3200,3000,3000,5800,6600,5700,7700,4700,5300,4800,4300,4200,5500,6000,5700,3400,4200,3800,6500,3600,3300,6100,3500,3200,3300,5300,3400,6100,5000,6900,4100,6000,3000,3000,3000,3000,5600,3000,3000,4000,3700,3100,3000,2600,3000,3000],"y":[8.09312382613671,6.42055828591733,6.06328617879313,7.55617860103954,7.7332415579297,4.38857142857143,6.1791764305942,4.98727165330712,7.39883704235463,7.23026908292147,5.4661504667765,5.84198133524767,7.5872541043218,5.27494062281529,7.81856030715416,5.54726292527061,7.51994323923968,8.51726563882005,7.87981335247667,6.09686985172982,20.0993273438425,18.5392250943531,8.59614263661914,3.98239052404882,14.1794850702819,7.88306647612077,7.6888589458769,9.95859637561779,18.7220834744696,9.25033309404164,9.89617243272927,17.3250671452945,8.33687293610912,19.9072789027001,9.01641203417851,5.24118018664752,15.275395948193,17.4687366549941,11.3729737600981,9.73443483524063,6.01257309880883,17.0372192475761,3.7034520473879,9.83382627422828,19.3400839233195,4.06779246644354,12.8704786819256,7.16987365398421,8.29218521177315,8.69209129714489,2.84765972720747,4.60157718109599,18.528964631221,18.5649125871577,5.31536193992213,9.89434944323693,12.7597438177747,14.5449564766933,6.41644263127484,5.24424531621694,4.11535146319834,19.350942730882,14.334434654756,9.47086112775665,9.17162431077213,18.1518603858716,11.9067314161846,9.13100381112278,3.39409188801149,14.9803934076918,2.8,3.4519559140239,14.6625547340189,5.53053266331658,12.6609853986659,4.35939622854281,7.9513548994773,3.93918589132507,2.86044508255564,16.1637097533314,22.2846395462416,15.0376627201299,21.097774739326,11.618033799005,4.49096471520004,14.2457225314081,24.0336373947856,3.11679959085812,5.00302644744436,6.15614893519416,7.76065257407232,7.72781489145072,8.80492810692999,21.5729354550714,22.9316269534241,18.8602415279897,26.3156869620392,13.240136945335,20.4846753059898,12.5711275092782,10.9223590424589,17.0111933505125,5.74130671806049,7.99344361516501,4.07258291457286,13.6907342373541,13.9362061094049,3.90925198164755,3.85760679010162,7.16082268485284,9.72727951425941,19.5519601497596,14.2046754852691,24.4931015645894,9.3294847119069,11.4142650976456,9.59309398363439,9.049869528306,7.45137835913009,12.9422701456068,14.6606594082645,13.5949911123186,4.50637903804738,9.42221298837793,6.24610615776031,13.1980287150036,4.34006030150754,6.93477995198728,12.9423587322905,6.89538258050289,7.59556246650247,6.21773748643857,17.9289190767094,5.41440631730079,16.0218338466295,14.4324618659058,17.8101794753344,11.9009595410272,14.0053348814656,3.02592108349097,4.00913045339593,3.71382033696288,3.3535347950429,13.3119856424982,3.58433165829146,2.47407152682256,11.2528108787306,8.06098793872299,6.43455994256999,5.36439775910364,5.00048552754435,3.20295081967213,3.31012588845062],"text":["Salary:  3800<br />points:  8.09312383<br />lu_bin: >=1 Lineups<br />sd_pts: 1.35857794<br />Bills","Salary:  3200<br />points:  6.42055829<br />lu_bin: >=1 Lineups<br />sd_pts: 0.94750101<br />Colts","Salary:  2500<br />points:  6.06328618<br />lu_bin: >=1 Lineups<br />sd_pts: 1.00827738<br />Dolphins","Salary:  3500<br />points:  7.55617860<br />lu_bin: >=1 Lineups<br />sd_pts: 1.78754680<br />Patriots","Salary:  3100<br />points:  7.73324156<br />lu_bin: >=1 Lineups<br />sd_pts: 0.86545636<br />Jets","Salary:  2100<br />points:  4.38857143<br />lu_bin: >=1 Lineups<br />sd_pts: 1.01395960<br />Bengals","Salary:  3100<br />points:  6.17917643<br />lu_bin: >=1 Lineups<br />sd_pts: 0.90965035<br />Jaguars","Salary:  2400<br />points:  4.98727165<br />lu_bin: >=1 Lineups<br />sd_pts: 0.73160075<br />Broncos","Salary:  3300<br />points:  7.39883704<br />lu_bin: >=1 Lineups<br />sd_pts: 0.60650312<br />Raiders","Salary:  3600<br />points:  7.23026908<br />lu_bin: >=1 Lineups<br />sd_pts: 1.25581499<br />Cowboys","Salary:  2700<br />points:  5.46615047<br />lu_bin: >=1 Lineups<br />sd_pts: 0.77238494<br />Eagles","Salary:  1500<br />points:  5.84198134<br />lu_bin: >=1 Lineups<br />sd_pts: 1.42282107<br />Cardinals","Salary:  2800<br />points:  7.58725410<br />lu_bin: >=1 Lineups<br />sd_pts: 1.19796334<br />Redskins","Salary:  1800<br />points:  5.27494062<br />lu_bin: >=1 Lineups<br />sd_pts: 1.18492260<br />Lions","Salary:  3400<br />points:  7.81856031<br />lu_bin: >=1 Lineups<br />sd_pts: 0.77086262<br />Vikings","Salary:  2600<br />points:  5.54726293<br />lu_bin: >=1 Lineups<br />sd_pts: 1.15314538<br />Falcons","Salary:  3000<br />points:  7.51994324<br />lu_bin: >=1 Lineups<br />sd_pts: 0.70857944<br />Panthers","Salary:  2900<br />points:  8.51726564<br />lu_bin: >=1 Lineups<br />sd_pts: 1.79631021<br />Saints","Salary:  4000<br />points:  7.87981335<br />lu_bin: >=1 Lineups<br />sd_pts: 1.08706189<br />49ers","Salary:  2300<br />points:  6.09686985<br />lu_bin: >=1 Lineups<br />sd_pts: 0.69980040<br />Texans","Salary:  6900<br />points: 20.09932734<br />lu_bin: >=1 Lineups<br />sd_pts: 0.74801898<br />Drew Brees","Salary:  6400<br />points: 18.53922509<br />lu_bin: >=1 Lineups<br />sd_pts: 1.45987371<br />Tom Brady","Salary:  3700<br />points:  8.59614264<br />lu_bin: >=1 Lineups<br />sd_pts: 0.75390391<br />Jason Witten","Salary:  2900<br />points:  3.98239052<br />lu_bin: >=1 Lineups<br />sd_pts: 1.20083412<br />Ben Watson","Salary:  5100<br />points: 14.17948507<br />lu_bin: >=1 Lineups<br />sd_pts: 2.21993789<br />Ryan Fitzpatrick","Salary:  4500<br />points:  7.88306648<br />lu_bin: >=1 Lineups<br />sd_pts: 1.39702734<br />Adrian Peterson","Salary:  4100<br />points:  7.68885895<br />lu_bin: >=1 Lineups<br />sd_pts: 1.14725810<br />Ted Ginn Jr.","Salary:  3900<br />points:  9.95859638<br />lu_bin: >=1 Lineups<br />sd_pts: 1.06811437<br />Greg Olsen","Salary:  6200<br />points: 18.72208347<br />lu_bin: >=1 Lineups<br />sd_pts: 1.83952047<br />Matt Ryan","Salary:  4200<br />points:  9.25033309<br />lu_bin: >=1 Lineups<br />sd_pts: 1.27702109<br />Danny Amendola","Salary:  4400<br />points:  9.89617243<br />lu_bin: >=1 Lineups<br />sd_pts: 1.13620672<br />Jared Cook","Salary:  7600<br />points: 17.32506715<br />lu_bin: >=1 Lineups<br />sd_pts: 2.16905266<br />Julian Edelman","Salary:  3900<br />points:  8.33687294<br />lu_bin: >=1 Lineups<br />sd_pts: 1.80574441<br />Demaryius Thomas","Salary:  7500<br />points: 19.90727890<br />lu_bin: >=1 Lineups<br />sd_pts: 1.80329604<br />Julio Jones","Salary:  4300<br />points:  9.01641203<br />lu_bin: >=1 Lineups<br />sd_pts: 2.12045309<br />Randall Cobb","Salary:  3000<br />points:  5.24118019<br />lu_bin: >=1 Lineups<br />sd_pts: 1.99233209<br />Luke Stocker","Salary:  5600<br />points: 15.27539595<br />lu_bin: >=1 Lineups<br />sd_pts: 1.40835487<br />Nick Foles","Salary:  6300<br />points: 17.46873665<br />lu_bin: >=1 Lineups<br />sd_pts: 0.79722248<br />Kirk Cousins","Salary:  5100<br />points: 11.37297376<br />lu_bin: >=1 Lineups<br />sd_pts: 1.47493689<br />Mohamed Sanu","Salary:  4700<br />points:  9.73443484<br />lu_bin: >=1 Lineups<br />sd_pts: 0.68417629<br />Cole Beasley","Salary:  3800<br />points:  6.01257310<br />lu_bin: >=1 Lineups<br />sd_pts: 1.86962600<br />Rex Burkhead","Salary:  7200<br />points: 17.03721925<br />lu_bin: >=1 Lineups<br />sd_pts: 2.26510760<br />Le'Veon Bell","Salary:  3300<br />points:  3.70345205<br />lu_bin: >=1 Lineups<br />sd_pts: 1.63333501<br />Tavon Austin","Salary:  4600<br />points:  9.83382627<br />lu_bin: >=1 Lineups<br />sd_pts: 2.52916137<br />Kenny Stills","Salary:  8100<br />points: 19.34008392<br />lu_bin: >=1 Lineups<br />sd_pts: 1.81012470<br />DeAndre Hopkins","Salary:  3700<br />points:  4.06779247<br />lu_bin: >=1 Lineups<br />sd_pts: 1.64007836<br />Marquise Goodwin","Salary:  5000<br />points: 12.87047868<br />lu_bin: >=1 Lineups<br />sd_pts: 0.67073583<br />Zach Ertz","Salary:  3200<br />points:  7.16987365<br />lu_bin: >=1 Lineups<br />sd_pts: 0.75137520<br />Tyler Eifert","Salary:  3800<br />points:  8.29218521<br />lu_bin: >=1 Lineups<br />sd_pts: 0.66719586<br />Darren Fells","Salary:  4000<br />points:  8.69209130<br />lu_bin: >=1 Lineups<br />sd_pts: 1.22413325<br />Jack Doyle","Salary:  3000<br />points:  2.84765973<br />lu_bin: >=1 Lineups<br />sd_pts: 1.60250912<br />Josh Hill","Salary:  5500<br />points:  4.60157718<br />lu_bin: >=1 Lineups<br />sd_pts: 4.60446409<br />Teddy Bridgewater","Salary:  6100<br />points: 18.52896463<br />lu_bin: >=1 Lineups<br />sd_pts: 0.82678015<br />Derek Carr","Salary:  7400<br />points: 18.56491259<br />lu_bin: >=1 Lineups<br />sd_pts: 1.74674634<br />Mike Evans","Salary:  3500<br />points:  5.31536194<br />lu_bin: >=1 Lineups<br />sd_pts: 1.28685576<br />Jordan Matthews","Salary:  3600<br />points:  9.89434944<br />lu_bin: >=1 Lineups<br />sd_pts: 1.64143968<br />Eric Ebron","Salary:  5400<br />points: 12.75974382<br />lu_bin: >=1 Lineups<br />sd_pts: 0.96242818<br />James White","Salary:  6400<br />points: 14.54495648<br />lu_bin: >=1 Lineups<br />sd_pts: 2.06559927<br />John Brown","Salary:  3400<br />points:  6.41644263<br />lu_bin: >=1 Lineups<br />sd_pts: 1.23187871<br />Albert Wilson","Salary:  3200<br />points:  5.24424532<br />lu_bin: >=1 Lineups<br />sd_pts: 1.53847022<br />Allen Hurns","Salary:  3300<br />points:  4.11535146<br />lu_bin: >=1 Lineups<br />sd_pts: 1.81625174<br />Cameron Brate","Salary:  6500<br />points: 19.35094273<br />lu_bin: >=1 Lineups<br />sd_pts: 1.63892849<br />Jameis Winston","Salary:  6100<br />points: 14.33443465<br />lu_bin: >=1 Lineups<br />sd_pts: 2.47068530<br />Tevin Coleman","Salary:  4000<br />points:  9.47086113<br />lu_bin: >=1 Lineups<br />sd_pts: 1.19452298<br />Duke Johnson","Salary:  5100<br />points:  9.17162431<br />lu_bin: >=1 Lineups<br />sd_pts: 2.14812889<br />David Johnson","Salary:  7700<br />points: 18.15186039<br />lu_bin: >=1 Lineups<br />sd_pts: 2.68148524<br />Amari Cooper","Salary:  4700<br />points: 11.90673142<br />lu_bin: >=1 Lineups<br />sd_pts: 0.35376646<br />DeVante Parker","Salary:  4000<br />points:  9.13100381<br />lu_bin: >=1 Lineups<br />sd_pts: 0.47146546<br />Nelson Agholor","Salary:  3000<br />points:  3.39409189<br />lu_bin: >=1 Lineups<br />sd_pts: 1.29484992<br />Justin Hardy","Salary:  6900<br />points: 14.98039341<br />lu_bin: >=1 Lineups<br />sd_pts: 0.97361385<br />Stefon Diggs","Salary:  3500<br />points:  2.80000000<br />lu_bin: >=1 Lineups<br />sd_pts: 1.97989899<br />Devin Funchess","Salary:  2800<br />points:  3.45195591<br />lu_bin: >=1 Lineups<br />sd_pts: 2.17547439<br />Tyler Kroft","Salary:  5500<br />points: 14.66255473<br />lu_bin: >=1 Lineups<br />sd_pts: 2.72772975<br />Darren Waller","Salary:  2700<br />points:  5.53053266<br />lu_bin: >=1 Lineups<br />sd_pts: 0.92846788<br />Nick Boyle","Salary:  5400<br />points: 12.66098540<br />lu_bin: >=1 Lineups<br />sd_pts: 1.64333169<br />Tyrell Williams","Salary:  3000<br />points:  4.35939623<br />lu_bin: >=1 Lineups<br />sd_pts: 2.18684422<br />DeAndre Carter","Salary:  3400<br />points:  7.95135490<br />lu_bin: >=1 Lineups<br />sd_pts: 2.26611073<br />Raheem Mostert","Salary:  3000<br />points:  3.93918589<br />lu_bin: >=1 Lineups<br />sd_pts: 1.30865908<br />Seth Roberts","Salary:  2600<br />points:  2.86044508<br />lu_bin: >=1 Lineups<br />sd_pts: 1.42102982<br />Matt LaCosse","Salary:  5400<br />points: 16.16370975<br />lu_bin: >=1 Lineups<br />sd_pts: 1.34966301<br />Carson Wentz","Salary:  6700<br />points: 22.28463955<br />lu_bin: >=1 Lineups<br />sd_pts: 0.54794276<br />Dak Prescott","Salary:  4600<br />points: 15.03766272<br />lu_bin: >=1 Lineups<br />sd_pts: 0.51609904<br />Jeff Driskel","Salary:  9000<br />points: 21.09777474<br />lu_bin: >=1 Lineups<br />sd_pts: 1.55032643<br />Ezekiel Elliott","Salary:  5400<br />points: 11.61803380<br />lu_bin: >=1 Lineups<br />sd_pts: 1.47204750<br />Kenyan Drake","Salary:  3700<br />points:  4.49096472<br />lu_bin: >=1 Lineups<br />sd_pts: 2.69989667<br />Laquon Treadwell","Salary:  5200<br />points: 14.24572253<br />lu_bin: >=1 Lineups<br />sd_pts: 0.49977208<br />Tyler Boyd","Salary:  9900<br />points: 24.03363739<br />lu_bin: >=1 Lineups<br />sd_pts: 1.80167229<br />Michael Thomas","Salary:  3000<br />points:  3.11679959<br />lu_bin: >=1 Lineups<br />sd_pts: 1.75056764<br />Trevor Davis","Salary:  3300<br />points:  5.00302645<br />lu_bin: >=1 Lineups<br />sd_pts: 2.22071522<br />Jakeem Grant","Salary:  4200<br />points:  6.15614894<br />lu_bin: >=1 Lineups<br />sd_pts: 1.79413624<br />Jalen Richard","Salary:  3900<br />points:  7.76065257<br />lu_bin: >=1 Lineups<br />sd_pts: 2.29184677<br />Alex Erickson","Salary:  4000<br />points:  7.72781489<br />lu_bin: >=1 Lineups<br />sd_pts: 1.19863441<br />Chester Rogers","Salary:  4600<br />points:  8.80492811<br />lu_bin: >=1 Lineups<br />sd_pts: 1.37809528<br />J.D. McKissic","Salary:  6800<br />points: 21.57293546<br />lu_bin: >=1 Lineups<br />sd_pts: 1.73566150<br />Deshaun Watson","Salary:  8900<br />points: 22.93162695<br />lu_bin: >=1 Lineups<br />sd_pts: 2.14256268<br />Dalvin Cook","Salary:  7900<br />points: 18.86024153<br />lu_bin: >=1 Lineups<br />sd_pts: 1.97819032<br />Leonard Fournette","Salary: 10500<br />points: 26.31568696<br />lu_bin: >=1 Lineups<br />sd_pts: 3.28353111<br />Christian McCaffrey","Salary:  5500<br />points: 13.24013695<br />lu_bin: >=1 Lineups<br />sd_pts: 1.35535967<br />Joe Mixon","Salary:  7400<br />points: 20.48467531<br />lu_bin: >=1 Lineups<br />sd_pts: 1.10644065<br />Alvin Kamara","Salary:  5300<br />points: 12.57112751<br />lu_bin: >=1 Lineups<br />sd_pts: 1.24466783<br />Curtis Samuel","Salary:  4500<br />points: 10.92235904<br />lu_bin: >=1 Lineups<br />sd_pts: 1.68365368<br />Dede Westbrook","Salary:  7300<br />points: 17.01119335<br />lu_bin: >=1 Lineups<br />sd_pts: 1.99399188<br />Chris Godwin","Salary:  3300<br />points:  5.74130672<br />lu_bin: >=1 Lineups<br />sd_pts: 0.76975782<br />Zay Jones","Salary:  3600<br />points:  7.99344362<br />lu_bin: >=1 Lineups<br />sd_pts: 0.97352837<br />O.J. Howard","Salary:  2800<br />points:  4.07258291<br />lu_bin: >=1 Lineups<br />sd_pts: 0.88932158<br />Jeremy Sprinkle","Salary:  4800<br />points: 13.69073424<br />lu_bin: >=1 Lineups<br />sd_pts: 2.42104461<br />Brian Hill","Salary:  6700<br />points: 13.93620611<br />lu_bin: >=1 Lineups<br />sd_pts: 1.12878602<br />Kenny Golladay","Salary:  3200<br />points:  3.90925198<br />lu_bin: >=1 Lineups<br />sd_pts: 2.19890313<br />Mack Hollins","Salary:  3000<br />points:  3.85760679<br />lu_bin: >=1 Lineups<br />sd_pts: 1.68598601<br />Isaiah McKenzie","Salary:  3000<br />points:  7.16082268<br />lu_bin: >=1 Lineups<br />sd_pts: 1.39110014<br />Kendrick Bourne","Salary:  5800<br />points:  9.72727951<br />lu_bin: >=1 Lineups<br />sd_pts: 2.38483703<br />Zach Pascal","Salary:  6600<br />points: 19.55196015<br />lu_bin: >=1 Lineups<br />sd_pts: 1.47527873<br />Josh Allen","Salary:  5700<br />points: 14.20467549<br />lu_bin: >=1 Lineups<br />sd_pts: 1.76331183<br />Sam Darnold","Salary:  7700<br />points: 24.49310156<br />lu_bin: >=1 Lineups<br />sd_pts: 1.58188521<br />Lamar Jackson","Salary:  4700<br />points:  9.32948471<br />lu_bin: >=1 Lineups<br />sd_pts: 0.93381261<br />Derrius Guice","Salary:  5300<br />points: 11.41426510<br />lu_bin: >=1 Lineups<br />sd_pts: 1.72065940<br />Phillip Lindsay","Salary:  4800<br />points:  9.59309398<br />lu_bin: >=1 Lineups<br />sd_pts: 1.28955072<br />Royce Freeman","Salary:  4300<br />points:  9.04986953<br />lu_bin: >=1 Lineups<br />sd_pts: 1.88268182<br />Kalen Ballage","Salary:  4200<br />points:  7.45137836<br />lu_bin: >=1 Lineups<br />sd_pts: 1.78835876<br />Nyheim Hines","Salary:  5500<br />points: 12.94227015<br />lu_bin: >=1 Lineups<br />sd_pts: 1.25690568<br />Calvin Ridley","Salary:  6000<br />points: 14.66065941<br />lu_bin: >=1 Lineups<br />sd_pts: 0.81677304<br />Courtland Sutton","Salary:  5700<br />points: 13.59499111<br />lu_bin: >=1 Lineups<br />sd_pts: 0.89788875<br />Christian Kirk","Salary:  3400<br />points:  4.50637904<br />lu_bin: >=1 Lineups<br />sd_pts: 1.23852595<br />Dante Pettis","Salary:  4200<br />points:  9.42221299<br />lu_bin: >=1 Lineups<br />sd_pts: 0.72426642<br />Auden Tate","Salary:  3800<br />points:  6.24610616<br />lu_bin: >=1 Lineups<br />sd_pts: 1.63759178<br />Tre'Quan Smith","Salary:  6500<br />points: 13.19802872<br />lu_bin: >=1 Lineups<br />sd_pts: 1.89922571<br />Michael Gallup","Salary:  3600<br />points:  4.34006030<br />lu_bin: >=1 Lineups<br />sd_pts: 1.71085598<br />DaeSean Hamilton","Salary:  3300<br />points:  6.93477995<br />lu_bin: >=1 Lineups<br />sd_pts: 1.40931487<br />Trey Quinn","Salary:  6100<br />points: 12.94235873<br />lu_bin: >=1 Lineups<br />sd_pts: 1.82927253<br />Mark Andrews","Salary:  3500<br />points:  6.89538258<br />lu_bin: >=1 Lineups<br />sd_pts: 1.85018888<br />Mike Gesicki","Salary:  3200<br />points:  7.59556247<br />lu_bin: >=1 Lineups<br />sd_pts: 0.96611613<br />Dallas Goedert","Salary:  3300<br />points:  6.21773749<br />lu_bin: >=1 Lineups<br />sd_pts: 2.60838890<br />Russell Gage","Salary:  5300<br />points: 17.92891908<br />lu_bin: >=1 Lineups<br />sd_pts: 0.67122808<br />Kyle Allen","Salary:  3400<br />points:  5.41440632<br />lu_bin: >=1 Lineups<br />sd_pts: 2.77084424<br />Ross Dwelley","Salary:  6100<br />points: 16.02183385<br />lu_bin: >=1 Lineups<br />sd_pts: 1.42649350<br />Kyler Murray","Salary:  5000<br />points: 14.43246187<br />lu_bin: >=1 Lineups<br />sd_pts: 1.91005588<br />Ryan Finley","Salary:  6900<br />points: 17.81017948<br />lu_bin: >=1 Lineups<br />sd_pts: 2.49565326<br />Josh Jacobs","Salary:  4100<br />points: 11.90095954<br />lu_bin: >=1 Lineups<br />sd_pts: 2.57522789<br />Miles Sanders","Salary:  6000<br />points: 14.00533488<br />lu_bin: >=1 Lineups<br />sd_pts: 0.70431703<br />Devin Singletary","Salary:  3000<br />points:  3.02592108<br />lu_bin: >=1 Lineups<br />sd_pts: 2.77882647<br />Myles Gaskin","Salary:  3000<br />points:  4.00913045<br />lu_bin: >=1 Lineups<br />sd_pts: 2.09013971<br />Qadree Ollison","Salary:  3000<br />points:  3.71382034<br />lu_bin: >=1 Lineups<br />sd_pts: 1.96784784<br />N'Keal Harry","Salary:  3000<br />points:  3.35353480<br />lu_bin: >=1 Lineups<br />sd_pts: 1.47301076<br />JJ Arcega-Whiteside","Salary:  5600<br />points: 13.31198564<br />lu_bin: >=1 Lineups<br />sd_pts: 0.49862608<br />Terry McLaurin","Salary:  3000<br />points:  3.58433166<br />lu_bin: >=1 Lineups<br />sd_pts: 1.16181364<br />Kelvin Harmon","Salary:  3000<br />points:  2.47407153<br />lu_bin: >=1 Lineups<br />sd_pts: 1.95868578<br />Stanley Morgan","Salary:  4000<br />points: 11.25281088<br />lu_bin: >=1 Lineups<br />sd_pts: 2.25352179<br />Deebo Samuel","Salary:  3700<br />points:  8.06098794<br />lu_bin: >=1 Lineups<br />sd_pts: 0.99612947<br />Noah Fant","Salary:  3100<br />points:  6.43455994<br />lu_bin: >=1 Lineups<br />sd_pts: 1.68815610<br />Irv Smith Jr.","Salary:  3000<br />points:  5.36439776<br />lu_bin: >=1 Lineups<br />sd_pts: 1.94335441<br />Dawson Knox","Salary:  2600<br />points:  5.00048553<br />lu_bin: >=1 Lineups<br />sd_pts: 1.35317358<br />Foster Moreau","Salary:  3000<br />points:  3.20295082<br />lu_bin: >=1 Lineups<br />sd_pts: 2.79035038<br />Keelan Doss","Salary:  3000<br />points:  3.31012589<br />lu_bin: >=1 Lineups<br />sd_pts: 1.60965191<br />Patrick Laird"],"type":"scatter","mode":"markers","marker":{"autocolorscale":false,"color":"rgba(255,0,0,1)","opacity":1,"size":[14.0445583294225,12.3520339089742,12.622697826431,15.5541417637201,11.9724824239604,12.6475809838732,12.1790621305738,11.3123034353714,10.6381121074713,13.6487015862716,11.5194190709479,14.2844565230982,13.4186997775562,13.3660913585577,11.5117879415308,13.2366716694898,11.1928390487405,15.582968877474,12.9616929511315,11.1467718187599,11.3963579605096,14.4203603677523,11.4262613827111,13.4302424573444,16.9011756911629,14.1888012762957,13.2124995020584,12.8813184645673,15.7240911695274,13.7316797941853,13.1669562843943,16.7499172220613,15.6139240562989,15.6058983174843,16.6037874449519,16.2103207247474,14.2309168760273,11.6428800182831,14.4751162647238,11.0640651074183,15.8214366804418,17.0339984121739,15.0347896174173,17.7852735553264,15.6282690076592,15.0579997943794,10.9921588040403,11.4134264544898,10.9731004040436,13.5234164309106,14.9280735818333,22.6771653543307,11.7873234731094,15.4189892736116,13.7699283449767,15.0626795944249,12.4192967721433,16.4368257512611,13.5541941068031,14.7030454029024,15.648305314899,15.0540454082403,17.6224151202409,13.4048487418987,16.6872061865405,18.2008697308415,9.01765795121861,9.8265685966593,13.8009113158852,12.4693589182086,16.171472992446,16.7691032103633,18.3246923340359,12.2654960960284,15.06918050036,16.803003125484,17.0369330304075,13.8542070032984,14.27784186798,14.0108235206171,10.2985964731806,10.1063333349899,14.7450556355811,14.4646348529634,18.2502944502726,10.0054538071695,15.600572677229,15.4317139787011,16.9034728285679,15.5758241891922,17.1120021519057,13.4213992329141,14.1180291415232,15.3819985429648,16.6704722216985,16.1661246586753,19.7378980450505,14.0323929237767,13.0431754255457,13.604802419889,15.2068467361697,16.2154976344281,11.5062449809694,12.4689774267241,12.0846758251719,17.4826447486982,13.1362508566663,16.8388614205028,15.214758999409,14.1666959479766,17.379791242228,14.4763556291264,15.4740511995646,14.8561016799622,12.2898858252189,15.3317470507984,13.7803839219343,15.8634085642296,15.5568156613935,13.6529863924862,11.7387138915268,12.1245832817684,13.5805307453205,11.2744501169587,15.0494467060127,15.916385426033,15.2987907678952,14.2344783427033,15.6907732354864,15.7586777120621,12.4358344082647,18.0029512649835,10.9948049951349,18.4391920945785,14.2980048739538,15.9509409181899,17.6921852122514,17.91224934447,11.1705083191732,18.4602926525293,16.5117915330039,16.1337020906182,14.4681302888781,9.99831154204111,13.2721500718434,16.1049087933627,17.0000572576778,12.5692643645261,15.2221159849161,16.0565763145328,14.0241210724207,18.4907020254539,14.9528919063832],"symbol":"circle","line":{"width":1.88976377952756,"color":"rgba(255,0,0,1)"}},"hoveron":"points","name":">=1 Lineups","legendgroup":">=1 Lineups","showlegend":true,"xaxis":"x","yaxis":"y","hoverinfo":"text","frame":null},{"x":[2600,3000,4600,5000,4700,4400,3300,3200,6000,5200,4600,7200,3000,6100,4000,3600,5300,3000,3700,2500,2700,3000,4600,4800,6600,3000,3100,2500,4800,3000,3000,3000,4500,4400,3700,3900,4300,3000,3000,6200,4100,2900,4100,2900,3000,2500,4600,3000,5900,3000,3300,6700,4300,6800,3000,3000,4100,4100,3000,3000,3000,5700,3200,2600,2500,2500,2500,2600,4400,3900,3000,2500,3000,3000,3200,2500,5900,4000,4700,3000,3700,4700,3000,3200,3600,3000,3000,3500,5600,3000,2800,3000,4000,3000,3000,3000,4900,2500,4000,4000,4300,4000,3000,3200,2500,6400,2500,7000,3000,2500,3000,5000,3100,2500,3800,4000,3000,3100,3100,4600,4900,3000,3000,3000,3000,3200,3500,3000,2500,2500,2500,2500,3500,2600,2900,4900,2600,2500,3000,3500,3000,3500,2600,4500,3000,3000,2500,3000,3000,3000,3000,3000,4300,3500,4000,4300,4500,4100,4000,3000,3700,5000,3500,4200,3300,3800,3000,5600,3000,3600,3000,3500,4000,3500,3500,3200,3600,2500,2500,5000,2500,3000,3000,2500,3000,4100,3000,2500,2500,3000,4200,3000,3000,3000,3000,2500],"y":[5.50185211773151,7.0004942339374,0.467310730253353,9.9032031586504,1.0262597150778,6.52619470819972,0,0,0,1.66401622228623,0.359315946348733,10.4181661610665,1.39386367969495,0,0,7.59759942569993,3.11778624080034,0.109057057057057,2.94110735289517,1.09334816941852,3.60747555705699,0.475793528505393,1.41829731743666,0,0,5.26560480845586,2.60330348431359,1.77141564967696,1.43732359933541,0.286617782175571,1.27278552991829,0,1.36176154992548,1.58168972546793,2.82017623230641,0,5.41841241031698,0.847073941134243,2.98442781540553,8.93445538323304,5.73789949748744,5.73789949748744,0.68069001490313,0.68069001490313,1.87339206930536,2.28676669059584,9.42574096376806,0.326393351800554,0,0,0.794041944709247,17.6111257791796,0.173436518720752,0,0.026,0.778695156953382,0.529644704379516,0.290514157973174,1.89270607801615,0.888624281397298,1.39576549094376,12.2282341797059,4.47330227068418,2.51444221105528,1.48607202216066,0.422070543374643,1.12165872259295,2.44957071069634,7.45522903030559,1.45403599120359,0.787224705779982,3.13742282842785,0.042,0.52,0.776072449952336,0.561452165156093,16.2388041820797,0,11.1805611405853,1.8316225331851,1.3816,7.6012613252377,0.231457878466592,2.02757534151466,5.80958528192768,0.190297380585516,3.64078048780488,0.798596973865199,0,0.927822080916002,1.6995567867036,1.29613112816831,0.73,0.600782621205582,4.54488196642012,1.71216068680724,8.38556202112336,0.156372881355932,0,0,0.4,0,0.844239341717572,3.6139112010546,0.65833033033033,13.5687475188278,1.23213926776741,3.35,0.604894184938036,0.0764345146379045,0,4.03,3.16649030470914,0.103171745152355,4.79990531556006,1.8613986830836,0.670901651112706,2.08458147882269,0.423343817325205,1.53673314840094,10.1442392460378,0.265639889196676,0.634938101788171,1.41510131332083,0.382102493074792,2.65948600143575,4.35842533471354,0,0.990513538748833,0.625259152907394,0.52189231873654,1.17296913137114,0,4.03439052404882,4.76390811198851,0,4.54843790380474,0.733142857142857,0.520505243088656,2.7964888692319,3.04010079478376,1.07298523167339,2.92016806722689,4.86875929804584,0.147969696969697,1.35281980742779,1.75835081029552,2.32588929759961,2.04431839847474,0,0.301570570570571,0.842168168168168,1.56550596125186,0,0,0.505051167411823,0.169047690014903,0,0.108295081967213,0,1.22130551415797,3.23754495839102,2.37247250568343,3.16875666946065,0.32,6.89474174804545,0.306666666666667,10.7044206130499,0.12,0.055,0.0306307492428305,3.73792928863023,8.8328914037977,3.09139267767408,4.85684565685571,3.35574874371859,7.09417357717387,0,4.38250293665853,4.65309646034308,0.798113912231559,0.432407152682256,0,1.33,0,5.26451169188446,0.350481430536451,0.48,0.03,0.965801120448179,0.76,0.5,0,0.61,0.918033012379642,0.73],"text":["Salary:  2600<br />points:  5.50185212<br />lu_bin: 0 Lineups<br />sd_pts: 0.23527849<br />Buccaneers","Salary:  3000<br />points:  7.00049423<br />lu_bin: 0 Lineups<br />sd_pts: 0.27539552<br />Ravens","Salary:  4600<br />points:  0.46731073<br />lu_bin: 0 Lineups<br />sd_pts: 0.49594758<br />Josh McCown","Salary:  5000<br />points:  9.90320316<br />lu_bin: 0 Lineups<br />sd_pts: 0.31697742<br />Larry Fitzgerald","Salary:  4700<br />points:  1.02625972<br />lu_bin: 0 Lineups<br />sd_pts: 0.65207644<br />Matt Schaub","Salary:  4400<br />points:  6.52619471<br />lu_bin: 0 Lineups<br />sd_pts: 0.64622409<br />Frank Gore","Salary:  3300<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Darren Sproles","Salary:  3200<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Vernon Davis","Salary:  6000<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Matthew Stafford","Salary:  5200<br />points:  1.66401622<br />lu_bin: 0 Lineups<br />sd_pts: 1.27845794<br />Brian Hoyer","Salary:  4600<br />points:  0.35931595<br />lu_bin: 0 Lineups<br />sd_pts: 0.36771559<br />Colt McCoy","Salary:  7200<br />points: 10.41816616<br />lu_bin: 0 Lineups<br />sd_pts: 1.25933959<br />Emmanuel Sanders","Salary:  3000<br />points:  1.39386368<br />lu_bin: 0 Lineups<br />sd_pts: 0.87404477<br />Andre Roberts","Salary:  6100<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />A.J. Green","Salary:  4000<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Blaine Gabbert","Salary:  3600<br />points:  7.59759943<br />lu_bin: 0 Lineups<br />sd_pts: 0.50951599<br />Kyle Rudolph","Salary:  5300<br />points:  3.11778624<br />lu_bin: 0 Lineups<br />sd_pts: 2.94089062<br />Andy Dalton","Salary:  3000<br />points:  0.10905706<br />lu_bin: 0 Lineups<br />sd_pts: 0.07185381<br />Taiwan Jones","Salary:  3700<br />points:  2.94110735<br />lu_bin: 0 Lineups<br />sd_pts: 0.82256376<br />Bilal Powell","Salary:  2500<br />points:  1.09334817<br />lu_bin: 0 Lineups<br />sd_pts: 0.67238391<br />Lee Smith","Salary:  2700<br />points:  3.60747556<br />lu_bin: 0 Lineups<br />sd_pts: 0.81898568<br />Charles Clay","Salary:  3000<br />points:  0.47579353<br />lu_bin: 0 Lineups<br />sd_pts: 0.50100526<br />Dwayne Harris","Salary:  4600<br />points:  1.41829732<br />lu_bin: 0 Lineups<br />sd_pts: 0.97732424<br />Robert Griffin III","Salary:  4800<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Alshon Jeffery","Salary:  6600<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />T.Y. Hilton","Salary:  3000<br />points:  5.26560481<br />lu_bin: 0 Lineups<br />sd_pts: 0.49995161<br />Jarius Wright","Salary:  3100<br />points:  2.60330348<br />lu_bin: 0 Lineups<br />sd_pts: 0.70452395<br />Brandon Bolden","Salary:  2500<br />points:  1.77141565<br />lu_bin: 0 Lineups<br />sd_pts: 0.76311858<br />Derek Carrier","Salary:  4800<br />points:  1.43732360<br />lu_bin: 0 Lineups<br />sd_pts: 1.14542577<br />Case Keenum","Salary:  3000<br />points:  0.28661778<br />lu_bin: 0 Lineups<br />sd_pts: 0.22680193<br />Jamize Olawale","Salary:  3000<br />points:  1.27278553<br />lu_bin: 0 Lineups<br />sd_pts: 0.36928498<br />Patrick DiMarco","Salary:  3000<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />James Develin","Salary:  4500<br />points:  1.36176155<br />lu_bin: 0 Lineups<br />sd_pts: 0.97526179<br />Matt Barkley","Salary:  4400<br />points:  1.58168973<br />lu_bin: 0 Lineups<br />sd_pts: 1.19008698<br />Mike Glennon","Salary:  3700<br />points:  2.82017623<br />lu_bin: 0 Lineups<br />sd_pts: 2.25873337<br />Kenjon Barner","Salary:  3900<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Chris Thompson","Salary:  4300<br />points:  5.41841241<br />lu_bin: 0 Lineups<br />sd_pts: 1.36414592<br />Giovani Bernard","Salary:  3000<br />points:  0.84707394<br />lu_bin: 0 Lineups<br />sd_pts: 0.81607204<br />Levine Toilolo","Salary:  3000<br />points:  2.98442782<br />lu_bin: 0 Lineups<br />sd_pts: 1.29341525<br />Kyle Juszczyk","Salary:  6200<br />points:  8.93445538<br />lu_bin: 0 Lineups<br />sd_pts: 2.28400309<br />Latavius Murray","Salary:  4100<br />points:  5.73789950<br />lu_bin: 0 Lineups<br />sd_pts: 0.40768570<br />Ryan Griffin","Salary:  2900<br />points:  5.73789950<br />lu_bin: 0 Lineups<br />sd_pts: 0.40768570<br />Ryan Griffin","Salary:  4100<br />points:  0.68069001<br />lu_bin: 0 Lineups<br />sd_pts: 0.40410807<br />Ryan Griffin","Salary:  2900<br />points:  0.68069001<br />lu_bin: 0 Lineups<br />sd_pts: 0.40410807<br />Ryan Griffin","Salary:  3000<br />points:  1.87339207<br />lu_bin: 0 Lineups<br />sd_pts: 0.93329357<br />Zach Line","Salary:  2500<br />points:  2.28676669<br />lu_bin: 0 Lineups<br />sd_pts: 0.42581188<br />Logan Thomas","Salary:  4600<br />points:  9.42574096<br />lu_bin: 0 Lineups<br />sd_pts: 0.64200053<br />Carlos Hyde","Salary:  3000<br />points:  0.32639335<br />lu_bin: 0 Lineups<br />sd_pts: 0.22768838<br />De'Anthony Thomas","Salary:  5900<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Devonta Freeman","Salary:  3000<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Isaiah Crowell","Salary:  3300<br />points:  0.79404194<br />lu_bin: 0 Lineups<br />sd_pts: 0.75972420<br />Donte Moncrief","Salary:  6700<br />points: 17.61112578<br />lu_bin: 0 Lineups<br />sd_pts: 0.95179806<br />Jimmy Garoppolo","Salary:  4300<br />points:  0.17343652<br />lu_bin: 0 Lineups<br />sd_pts: 0.16745411<br />David Fales","Salary:  6800<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Adam Thielen","Salary:  3000<br />points:  0.02600000<br />lu_bin: 0 Lineups<br />sd_pts: 0.01838478<br />Senorise Perry","Salary:  3000<br />points:  0.77869516<br />lu_bin: 0 Lineups<br />sd_pts: 0.85364396<br />Keith Smith","Salary:  4100<br />points:  0.52964470<br />lu_bin: 0 Lineups<br />sd_pts: 0.32220395<br />Brett Hundley","Salary:  4100<br />points:  0.29051416<br />lu_bin: 0 Lineups<br />sd_pts: 0.18893132<br />Sean Mannion","Salary:  3000<br />points:  1.89270608<br />lu_bin: 0 Lineups<br />sd_pts: 1.96930440<br />T.J. Yeldon","Salary:  3000<br />points:  0.88862428<br />lu_bin: 0 Lineups<br />sd_pts: 0.54545889<br />Ameer Abdullah","Salary:  3000<br />points:  1.39576549<br />lu_bin: 0 Lineups<br />sd_pts: 1.10279182<br />Devin Smith","Salary:  5700<br />points: 12.22823418<br />lu_bin: 0 Lineups<br />sd_pts: 0.65295686<br />Jamison Crowder","Salary:  3200<br />points:  4.47330227<br />lu_bin: 0 Lineups<br />sd_pts: 0.30629681<br />Breshad Perriman","Salary:  2600<br />points:  2.51444221<br />lu_bin: 0 Lineups<br />sd_pts: 0.69622218<br />Maxx Williams","Salary:  2500<br />points:  1.48607202<br />lu_bin: 0 Lineups<br />sd_pts: 0.84994235<br />Jeff Heuerman","Salary:  2500<br />points:  0.42207054<br />lu_bin: 0 Lineups<br />sd_pts: 0.39497572<br />Ben Koyack","Salary:  2500<br />points:  1.12165872<br />lu_bin: 0 Lineups<br />sd_pts: 0.64474817<br />Clive Walford","Salary:  2600<br />points:  2.44957071<br />lu_bin: 0 Lineups<br />sd_pts: 0.53149827<br />Jesse James","Salary:  4400<br />points:  7.45522903<br />lu_bin: 0 Lineups<br />sd_pts: 0.69941554<br />Chris Conley","Salary:  3900<br />points:  1.45403599<br />lu_bin: 0 Lineups<br />sd_pts: 0.99495825<br />Ty Montgomery","Salary:  3000<br />points:  0.78722471<br />lu_bin: 0 Lineups<br />sd_pts: 0.57555677<br />Zach Zenner","Salary:  2500<br />points:  3.13742283<br />lu_bin: 0 Lineups<br />sd_pts: 1.02258606<br />C.J. Uzomah","Salary:  3000<br />points:  0.04200000<br />lu_bin: 0 Lineups<br />sd_pts: 0.02969848<br />Michael Burton","Salary:  3000<br />points:  0.52000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />DeAndrew White","Salary:  3200<br />points:  0.77607245<br />lu_bin: 0 Lineups<br />sd_pts: 0.60366957<br />Damiere Byrd","Salary:  2500<br />points:  0.56145217<br />lu_bin: 0 Lineups<br />sd_pts: 0.49876227<br />Daniel Brown","Salary:  5900<br />points: 16.23880418<br />lu_bin: 0 Lineups<br />sd_pts: 1.01244141<br />Jacoby Brissett","Salary:  4000<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Cody Kessler","Salary:  4700<br />points: 11.18056114<br />lu_bin: 0 Lineups<br />sd_pts: 1.44992426<br />Brandon Allen","Salary:  3000<br />points:  1.83162253<br />lu_bin: 0 Lineups<br />sd_pts: 1.04279939<br />Devontae Booker","Salary:  3700<br />points:  1.38160000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Paul Perkins","Salary:  4700<br />points:  7.60126133<br />lu_bin: 0 Lineups<br />sd_pts: 0.30067604<br />Jordan Howard","Salary:  3000<br />points:  0.23145788<br />lu_bin: 0 Lineups<br />sd_pts: 0.19445804<br />Jonathan Williams","Salary:  3200<br />points:  2.02757534<br />lu_bin: 0 Lineups<br />sd_pts: 1.08288439<br />Wendell Smallwood","Salary:  3600<br />points:  5.80958528<br />lu_bin: 0 Lineups<br />sd_pts: 0.56985246<br />Peyton Barber","Salary:  3000<br />points:  0.19029738<br />lu_bin: 0 Lineups<br />sd_pts: 0.15124255<br />Tyler Ervin","Salary:  3000<br />points:  3.64078049<br />lu_bin: 0 Lineups<br />sd_pts: 0.61037532<br />Pharoh Cooper","Salary:  3500<br />points:  0.79859697<br />lu_bin: 0 Lineups<br />sd_pts: 0.33234019<br />Duke Williams","Salary:  5600<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Austin Hooper","Salary:  3000<br />points:  0.92782208<br />lu_bin: 0 Lineups<br />sd_pts: 0.50629260<br />Chris Moore","Salary:  2800<br />points:  1.69955679<br />lu_bin: 0 Lineups<br />sd_pts: 0.71417785<br />Seth DeValve","Salary:  3000<br />points:  1.29613113<br />lu_bin: 0 Lineups<br />sd_pts: 0.60560591<br />Andy Janovich","Salary:  4000<br />points:  0.73000000<br />lu_bin: 0 Lineups<br />sd_pts: 0.51618795<br />Nate Sudfeld","Salary:  3000<br />points:  0.60078262<br />lu_bin: 0 Lineups<br />sd_pts: 0.55475201<br />Dwayne Washington","Salary:  3000<br />points:  4.54488197<br />lu_bin: 0 Lineups<br />sd_pts: 0.65790209<br />DeAndre Washington","Salary:  3000<br />points:  1.71216069<br />lu_bin: 0 Lineups<br />sd_pts: 0.58093363<br />C.J. Ham","Salary:  4900<br />points:  8.38556202<br />lu_bin: 0 Lineups<br />sd_pts: 1.13135204<br />Robby Anderson","Salary:  2500<br />points:  0.15637288<br />lu_bin: 0 Lineups<br />sd_pts: 0.09461601<br />Chris Manhertz","Salary:  4000<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts: 0.00000000<br />DeShone Kizer","Salary:  4000<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Chad Kelly","Salary:  4300<br />points:  0.40000000<br />lu_bin: 0 Lineups<br />sd_pts: 0.28284271<br />Cooper Rush","Salary:  4000<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />C.J. Beathard","Salary:  3000<br />points:  0.84423934<br />lu_bin: 0 Lineups<br />sd_pts: 0.46758929<br />T.J. Logan","Salary:  3200<br />points:  3.61391120<br />lu_bin: 0 Lineups<br />sd_pts: 0.46674301<br />Dare Ogunbowale","Salary:  2500<br />points:  0.65833033<br />lu_bin: 0 Lineups<br />sd_pts: 0.51348310<br />Jordan Leggett","Salary:  6400<br />points: 13.56874752<br />lu_bin: 0 Lineups<br />sd_pts: 0.76988910<br />Marlon Mack","Salary:  2500<br />points:  1.23213927<br />lu_bin: 0 Lineups<br />sd_pts: 0.37386935<br />Mo Alie-Cox","Salary:  7000<br />points:  3.35000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />George Kittle","Salary:  3000<br />points:  0.60489418<br />lu_bin: 0 Lineups<br />sd_pts: 0.45265115<br />Austin Carr","Salary:  2500<br />points:  0.07643451<br />lu_bin: 0 Lineups<br />sd_pts: 0.04632056<br />Cethan Carter","Salary:  3000<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Krishawn Hogan","Salary:  5000<br />points:  4.03000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Matt Breida","Salary:  3100<br />points:  3.16649030<br />lu_bin: 0 Lineups<br />sd_pts: 0.66255905<br />Marcus Johnson","Salary:  2500<br />points:  0.10317175<br />lu_bin: 0 Lineups<br />sd_pts: 0.07424621<br />Darrell Daniels","Salary:  3800<br />points:  4.79990532<br />lu_bin: 0 Lineups<br />sd_pts: 1.57499386<br />Keelan Cole","Salary:  4000<br />points:  1.86139868<br />lu_bin: 0 Lineups<br />sd_pts: 0.75549221<br />Taysom Hill","Salary:  3000<br />points:  0.67090165<br />lu_bin: 0 Lineups<br />sd_pts: 0.49489612<br />Patrick Ricard","Salary:  3100<br />points:  2.08458148<br />lu_bin: 0 Lineups<br />sd_pts: 1.25556217<br />Marvin Hall","Salary:  3100<br />points:  0.42334382<br />lu_bin: 0 Lineups<br />sd_pts: 0.22111171<br />Brandon Zylstra","Salary:  4600<br />points:  1.53673315<br />lu_bin: 0 Lineups<br />sd_pts: 1.22825070<br />Josh Rosen","Salary:  4900<br />points: 10.14423925<br />lu_bin: 0 Lineups<br />sd_pts: 0.66253061<br />Sony Michel","Salary:  3000<br />points:  0.26563989<br />lu_bin: 0 Lineups<br />sd_pts: 0.16546299<br />Josh Adams","Salary:  3000<br />points:  0.63493810<br />lu_bin: 0 Lineups<br />sd_pts: 0.21213203<br />Braxton Berrios","Salary:  3000<br />points:  1.41510131<br />lu_bin: 0 Lineups<br />sd_pts: 1.25257203<br />Marcell Ateman","Salary:  3000<br />points:  0.38210249<br />lu_bin: 0 Lineups<br />sd_pts: 0.36133157<br />Cedrick Wilson","Salary:  3200<br />points:  2.65948600<br />lu_bin: 0 Lineups<br />sd_pts: 1.12955399<br />Robert Foster","Salary:  3500<br />points:  4.35842533<br />lu_bin: 0 Lineups<br />sd_pts: 1.27973880<br />Keke Coutee","Salary:  3000<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Jaleel Scott","Salary:  2500<br />points:  0.99051354<br />lu_bin: 0 Lineups<br />sd_pts: 0.46992412<br />Troy Fumagalli","Salary:  2500<br />points:  0.62525915<br />lu_bin: 0 Lineups<br />sd_pts: 0.45063142<br />Tyler Conklin","Salary:  2500<br />points:  0.52189232<br />lu_bin: 0 Lineups<br />sd_pts: 0.39021746<br />Durham Smythe","Salary:  2500<br />points:  1.17296913<br />lu_bin: 0 Lineups<br />sd_pts: 0.93926638<br />Ian Thomas","Salary:  3500<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Chris Herndon","Salary:  2600<br />points:  4.03439052<br />lu_bin: 0 Lineups<br />sd_pts: 0.63547876<br />Hayden Hurst","Salary:  2900<br />points:  4.76390811<br />lu_bin: 0 Lineups<br />sd_pts: 0.76733566<br />Blake Jarwin","Salary:  4900<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Chase Edmonds","Salary:  2600<br />points:  4.54843790<br />lu_bin: 0 Lineups<br />sd_pts: 0.30855898<br />Jordan Akins","Salary:  2500<br />points:  0.73314286<br />lu_bin: 0 Lineups<br />sd_pts: 0.57873087<br />Dalton Schultz","Salary:  3000<br />points:  0.52050524<br />lu_bin: 0 Lineups<br />sd_pts: 0.48701594<br />Justin Watson","Salary:  3500<br />points:  2.79648887<br />lu_bin: 0 Lineups<br />sd_pts: 0.60401960<br />Jordan Wilkins","Salary:  3000<br />points:  3.04010079<br />lu_bin: 0 Lineups<br />sd_pts: 1.62563865<br />Boston Scott","Salary:  3500<br />points:  1.07298523<br />lu_bin: 0 Lineups<br />sd_pts: 0.58598438<br />Nick Bawden","Salary:  2600<br />points:  2.92016807<br />lu_bin: 0 Lineups<br />sd_pts: 1.19079557<br />Ryan Izzo","Salary:  4500<br />points:  4.86875930<br />lu_bin: 0 Lineups<br />sd_pts: 1.08892849<br />Gus Edwards","Salary:  3000<br />points:  0.14796970<br />lu_bin: 0 Lineups<br />sd_pts: 0.11441224<br />Mike Boone","Salary:  3000<br />points:  1.35281981<br />lu_bin: 0 Lineups<br />sd_pts: 1.09601551<br />C.J. Board","Salary:  2500<br />points:  1.75835081<br />lu_bin: 0 Lineups<br />sd_pts: 1.39855920<br />Dan Arnold","Salary:  3000<br />points:  2.32588930<br />lu_bin: 0 Lineups<br />sd_pts: 1.45872728<br />Vyncint Smith","Salary:  3000<br />points:  2.04431840<br />lu_bin: 0 Lineups<br />sd_pts: 0.80785857<br />Trent Sherfield","Salary:  3000<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Brandon Powell","Salary:  3000<br />points:  0.30157057<br />lu_bin: 0 Lineups<br />sd_pts: 0.23295863<br />Buddy Howell","Salary:  3000<br />points:  0.84216817<br />lu_bin: 0 Lineups<br />sd_pts: 0.51295911<br />De'Lance Turner","Salary:  4300<br />points:  1.56550596<br />lu_bin: 0 Lineups<br />sd_pts: 1.17845560<br />Nick Mullens","Salary:  3500<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Chad Beebe","Salary:  4000<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Trace McSorley","Salary:  4300<br />points:  0.50505117<br />lu_bin: 0 Lineups<br />sd_pts: 0.36173941<br />Will Grier","Salary:  4500<br />points:  0.16904769<br />lu_bin: 0 Lineups<br />sd_pts: 0.20110942<br />Jarrett Stidham","Salary:  4100<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Brett Rypien","Salary:  4000<br />points:  0.10829508<br />lu_bin: 0 Lineups<br />sd_pts: 0.21286912<br />David Blough","Salary:  3000<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Damien Harris","Salary:  3700<br />points:  1.22130551<br />lu_bin: 0 Lineups<br />sd_pts: 0.74600825<br />Trayveon Williams","Salary:  5000<br />points:  3.23754496<br />lu_bin: 0 Lineups<br />sd_pts: 0.83511781<br />Tony Pollard","Salary:  3500<br />points:  2.37247251<br />lu_bin: 0 Lineups<br />sd_pts: 0.39430226<br />Justice Hill","Salary:  4200<br />points:  3.16875667<br />lu_bin: 0 Lineups<br />sd_pts: 1.73984412<br />Ryquell Armstead","Salary:  3300<br />points:  0.32000000<br />lu_bin: 0 Lineups<br />sd_pts: 0.22627417<br />Jordan Scarlett","Salary:  3800<br />points:  6.89474175<br />lu_bin: 0 Lineups<br />sd_pts: 0.70118093<br />Ty Johnson","Salary:  3000<br />points:  0.30666667<br />lu_bin: 0 Lineups<br />sd_pts: 0.21684608<br />Devine Ozigbo","Salary:  5600<br />points: 10.70442061<br />lu_bin: 0 Lineups<br />sd_pts: 0.77655594<br />Marquise Brown","Salary:  3000<br />points:  0.12000000<br />lu_bin: 0 Lineups<br />sd_pts:        Inf<br />Greg Dortch","Salary:  3600<br />points:  0.05500000<br />lu_bin: 0 Lineups<br />sd_pts: 0.03889087<br />Parris Campbell","Salary:  3000<br />points:  0.03063075<br />lu_bin: 0 Lineups<br />sd_pts: 0.06877098<br />Gary Jennings","Salary:  3500<br />points:  3.73792929<br />lu_bin: 0 Lineups<br />sd_pts: 1.03204388<br />Andy Isabella","Salary:  4000<br />points:  8.83289140<br />lu_bin: 0 Lineups<br />sd_pts: 0.35426286<br />Hunter Renfrow","Salary:  3500<br />points:  3.09139268<br />lu_bin: 0 Lineups<br />sd_pts: 1.23809854<br />KeeSean Johnson","Salary:  3500<br />points:  4.85684566<br />lu_bin: 0 Lineups<br />sd_pts: 1.01740737<br />Miles Boykin","Salary:  3200<br />points:  3.35574874<br />lu_bin: 0 Lineups<br />sd_pts: 1.41042721<br />Jakobi Meyers","Salary:  3600<br />points:  7.09417358<br />lu_bin: 0 Lineups<br />sd_pts: 0.66944491<br />T.J. Hockenson","Salary:  2500<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Drew Sample","Salary:  2500<br />points:  4.38250294<br />lu_bin: 0 Lineups<br />sd_pts: 0.26847360<br />Josh Oliver","Salary:  5000<br />points:  4.65309646<br />lu_bin: 0 Lineups<br />sd_pts: 0.53083406<br />Alexander Mattison","Salary:  2500<br />points:  0.79811391<br />lu_bin: 0 Lineups<br />sd_pts: 0.63646551<br />Trevon Wesco","Salary:  3000<br />points:  0.43240715<br />lu_bin: 0 Lineups<br />sd_pts: 0.31819805<br />Juwann Winfree","Salary:  3000<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Cullen Gillaspia","Salary:  2500<br />points:  1.33000000<br />lu_bin: 0 Lineups<br />sd_pts: 0.94045202<br />Tommy Sweeney","Salary:  3000<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts: 0.00000000<br />Chandler Cox","Salary:  4100<br />points:  5.26451169<br />lu_bin: 0 Lineups<br />sd_pts: 1.75362482<br />Olabisi Johnson","Salary:  3000<br />points:  0.35048143<br />lu_bin: 0 Lineups<br />sd_pts: 0.06363961<br />Ashton Dulin","Salary:  2500<br />points:  0.48000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Andrew Beck","Salary:  2500<br />points:  0.03000000<br />lu_bin: 0 Lineups<br />sd_pts:        Inf<br />Tanner Hudson","Salary:  3000<br />points:  0.96580112<br />lu_bin: 0 Lineups<br />sd_pts: 0.68768625<br />Alec Ingold","Salary:  4200<br />points:  0.76000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Reggie Bonnafon","Salary:  3000<br />points:  0.50000000<br />lu_bin: 0 Lineups<br />sd_pts: 0.35355339<br />Gunner Olszewski","Salary:  3000<br />points:  0.00000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Deonte Harris","Salary:  3000<br />points:  0.61000000<br />lu_bin: 0 Lineups<br />sd_pts:        NaN<br />Diontae Spencer","Salary:  3000<br />points:  0.91803301<br />lu_bin: 0 Lineups<br />sd_pts: 0.11313708<br />Olamide Zaccheaus","Salary:  2500<br />points:  0.73000000<br />lu_bin: 0 Lineups<br />sd_pts:        Inf<br />Hale Hentges"],"type":"scatter","mode":"markers","marker":{"autocolorscale":false,"color":"rgba(0,0,255,1)","opacity":1,"size":[8.05130965923864,8.40117072118445,9.98158611051882,8.73782001746746,10.8911260727169,10.859141015033,null,null,null,13.7372770921531,9.11993011585484,13.6625413886085,12.0130337373014,null,null,10.0658533465258,18.8823254902932,6.14023890265665,11.7668784126083,11.0010145332595,11.749487343738,10.0131302691368,12.4859014104153,null,null,10.0065719474921,11.1715939066344,11.472850944307,13.2049636133047,7.97365235568828,9.13131429395614,null,12.4767100054478,13.3869597461055,17.0153355807102,null,14.0655718473829,11.7352976482618,13.7953580267495,17.0891678760101,9.40269108334861,9.40269108334861,9.3779637897533,9.3779637897533,12.287520334571,9.52633785257672,10.8359677998252,7.98184071216207,null,null,11.4557218173554,12.3714507191595,7.38337074297161,null,4.97364530005346,11.9163785055903,8.7785306287416,7.60751011476377,16.1382734121325,10.2838039678299,13.0278879338106,10.8959254276168,8.65356893125555,11.1279125542568,11.8987176702364,9.31434339581346,10.8510517915024,10.2000283623751,11.1447457008581,12.5640954756971,10.4608442642303,12.6852244449496,5.29722472066611,null,10.6220718466133,9.99916072814742,12.6409395066639,null,14.3840382370286,12.7728126110578,null,8.60864076188374,7.66309565422676,12.9440327863385,10.4276527781038,7.20448338169567,10.6599714550444,8.85655377185726,null,10.0459369911501,11.2220673219024,10.6330371826736,10.1068782652472,10.3389774211467,10.9228229595331,10.4919801803424,13.146879922336,6.48847320143094,3.77952755905512,null,8.4632426843458,null,9.80165932725301,9.7962071991888,10.0902786531199,11.5069038470822,9.16443081888133,null,9.70468357512365,5.67494507932184,null,null,10.9480602837937,6.17921747358681,14.8319482872183,11.434312096198,9.97500812253169,13.6477081221042,7.92070509905204,13.5397898019995,10.9479064070871,7.36188078205014,7.83574384164626,13.6359504708435,9.07336896878822,13.1394332556171,13.7422640617558,null,9.81667586842334,9.6914497818734,9.28090353982811,12.3147012897178,null,10.8000348348175,11.4940787846587,null,8.67153459151739,10.4792421155568,9.92548522681191,10.6240553429431,15.0082406299185,10.5210967627966,13.3898194864265,12.969572923077,6.75841588677887,12.9994300030969,14.1945066563243,14.4161814403131,11.6951604425264,null,8.030197396631,10.0870579037434,13.3398950825106,null,null,9.07635579559616,7.72895539485929,null,7.84278473196828,null,11.3861137469689,11.8275994734614,9.30962276776924,15.395970030212,7.96876972201268,11.15403510639,7.88056527172478,11.5402892556954,null,5.51629561036351,6.08904146271994,12.7263137049525,9.02133170660712,13.5788394837137,12.6626452360088,14.2386034743033,10.985214628567,null,8.34271984389385,10.1960152475436,10.8054833347928,8.74735764841367,null,12.3200865584102,3.77952755905512,15.4418841701451,6.00120871515004,null,null,11.0827267678558,null,9.01608026275207,null,null,6.74176910051501,null],"symbol":"circle","line":{"width":1.88976377952756,"color":"rgba(0,0,255,1)"}},"hoveron":"points","name":"0 Lineups","legendgroup":"0 Lineups","showlegend":true,"xaxis":"x","yaxis":"y","hoverinfo":"text","frame":null},{"x":[1500,1613.92405063291,1727.84810126582,1841.77215189873,1955.69620253165,2069.62025316456,2183.54430379747,2297.46835443038,2411.39240506329,2525.3164556962,2639.24050632911,2753.16455696203,2867.08860759494,2981.01265822785,3094.93670886076,3208.86075949367,3322.78481012658,3436.70886075949,3550.6329113924,3664.55696202532,3778.48101265823,3892.40506329114,4006.32911392405,4120.25316455696,4234.17721518987,4348.10126582278,4462.0253164557,4575.94936708861,4689.87341772152,4803.79746835443,4917.72151898734,5031.64556962025,5145.56962025316,5259.49367088608,5373.41772151899,5487.3417721519,5601.26582278481,5715.18987341772,5829.11392405063,5943.03797468354,6056.96202531646,6170.88607594937,6284.81012658228,6398.73417721519,6512.6582278481,6626.58227848101,6740.50632911392,6854.43037974684,6968.35443037975,7082.27848101266,7196.20253164557,7310.12658227848,7424.05063291139,7537.9746835443,7651.89873417722,7765.82278481013,7879.74683544304,7993.67088607595,8107.59493670886,8221.51898734177,8335.44303797468,8449.36708860759,8563.29113924051,8677.21518987342,8791.13924050633,8905.06329113924,9018.98734177215,9132.91139240506,9246.83544303797,9360.75949367088,9474.6835443038,9588.60759493671,9702.53164556962,9816.45569620253,9930.37974683544,10044.3037974684,10158.2278481013,10272.1518987342,10386.0759493671,10500],"y":[-2.01048767760149,-1.65825111209969,-1.3060145465979,-0.953777981096099,-0.601541415594302,-0.249304850092506,0.102931715409291,0.455168280911088,0.807404846412885,1.15964141191468,1.51187797741648,1.86411454291827,2.21635110842007,2.56858767392187,2.92082423942366,3.27306080492546,3.62529737042726,3.97753393592905,4.32977050143085,4.68200706693265,5.03424363243444,5.38648019793624,5.73871676343804,6.09095332893983,6.44318989444163,6.79542645994342,7.14766302544522,7.49989959094702,7.85213615644882,8.20437272195061,8.55660928745241,8.9088458529542,9.261082418456,9.6133189839578,9.96555554945959,10.3177921149614,10.6700286804632,11.022265245965,11.3745018114668,11.7267383769686,12.0789749424704,12.4312115079722,12.783448073474,13.1356846389758,13.4879212044776,13.8401577699794,14.1923943354812,14.544630900983,14.8968674664847,15.2491040319865,15.6013405974883,15.9535771629901,16.3058137284919,16.6580502939937,17.0102868594955,17.3625234249973,17.7147599904991,18.0669965560009,18.4192331215027,18.7714696870045,19.1237062525063,19.4759428180081,19.8281793835099,20.1804159490117,20.5326525145135,20.8848890800153,21.2371256455171,21.5893622110189,21.9415987765207,22.2938353420225,22.6460719075243,22.9983084730261,23.3505450385279,23.7027816040297,24.0550181695315,24.4072547350333,24.759491300535,25.1117278660368,25.4639644315386,25.8162009970404],"text":["Salary:  1500.000<br />points: -2.0104877","Salary:  1613.924<br />points: -1.6582511","Salary:  1727.848<br />points: -1.3060145","Salary:  1841.772<br />points: -0.9537780","Salary:  1955.696<br />points: -0.6015414","Salary:  2069.620<br />points: -0.2493049","Salary:  2183.544<br />points:  0.1029317","Salary:  2297.468<br />points:  0.4551683","Salary:  2411.392<br />points:  0.8074048","Salary:  2525.316<br />points:  1.1596414","Salary:  2639.241<br />points:  1.5118780","Salary:  2753.165<br />points:  1.8641145","Salary:  2867.089<br />points:  2.2163511","Salary:  2981.013<br />points:  2.5685877","Salary:  3094.937<br />points:  2.9208242","Salary:  3208.861<br />points:  3.2730608","Salary:  3322.785<br />points:  3.6252974","Salary:  3436.709<br />points:  3.9775339","Salary:  3550.633<br />points:  4.3297705","Salary:  3664.557<br />points:  4.6820071","Salary:  3778.481<br />points:  5.0342436","Salary:  3892.405<br />points:  5.3864802","Salary:  4006.329<br />points:  5.7387168","Salary:  4120.253<br />points:  6.0909533","Salary:  4234.177<br />points:  6.4431899","Salary:  4348.101<br />points:  6.7954265","Salary:  4462.025<br />points:  7.1476630","Salary:  4575.949<br />points:  7.4998996","Salary:  4689.873<br />points:  7.8521362","Salary:  4803.797<br />points:  8.2043727","Salary:  4917.722<br />points:  8.5566093","Salary:  5031.646<br />points:  8.9088459","Salary:  5145.570<br />points:  9.2610824","Salary:  5259.494<br />points:  9.6133190","Salary:  5373.418<br />points:  9.9655555","Salary:  5487.342<br />points: 10.3177921","Salary:  5601.266<br />points: 10.6700287","Salary:  5715.190<br />points: 11.0222652","Salary:  5829.114<br />points: 11.3745018","Salary:  5943.038<br />points: 11.7267384","Salary:  6056.962<br />points: 12.0789749","Salary:  6170.886<br />points: 12.4312115","Salary:  6284.810<br />points: 12.7834481","Salary:  6398.734<br />points: 13.1356846","Salary:  6512.658<br />points: 13.4879212","Salary:  6626.582<br />points: 13.8401578","Salary:  6740.506<br />points: 14.1923943","Salary:  6854.430<br />points: 14.5446309","Salary:  6968.354<br />points: 14.8968675","Salary:  7082.278<br />points: 15.2491040","Salary:  7196.203<br />points: 15.6013406","Salary:  7310.127<br />points: 15.9535772","Salary:  7424.051<br />points: 16.3058137","Salary:  7537.975<br />points: 16.6580503","Salary:  7651.899<br />points: 17.0102869","Salary:  7765.823<br />points: 17.3625234","Salary:  7879.747<br />points: 17.7147600","Salary:  7993.671<br />points: 18.0669966","Salary:  8107.595<br />points: 18.4192331","Salary:  8221.519<br />points: 18.7714697","Salary:  8335.443<br />points: 19.1237063","Salary:  8449.367<br />points: 19.4759428","Salary:  8563.291<br />points: 19.8281794","Salary:  8677.215<br />points: 20.1804159","Salary:  8791.139<br />points: 20.5326525","Salary:  8905.063<br />points: 20.8848891","Salary:  9018.987<br />points: 21.2371256","Salary:  9132.911<br />points: 21.5893622","Salary:  9246.835<br />points: 21.9415988","Salary:  9360.759<br />points: 22.2938353","Salary:  9474.684<br />points: 22.6460719","Salary:  9588.608<br />points: 22.9983085","Salary:  9702.532<br />points: 23.3505450","Salary:  9816.456<br />points: 23.7027816","Salary:  9930.380<br />points: 24.0550182","Salary: 10044.304<br />points: 24.4072547","Salary: 10158.228<br />points: 24.7594913","Salary: 10272.152<br />points: 25.1117279","Salary: 10386.076<br />points: 25.4639644","Salary: 10500.000<br />points: 25.8162010"],"type":"scatter","mode":"lines","name":"fitted values","line":{"width":3.77952755905512,"color":"rgba(51,102,255,1)","dash":"solid"},"hoveron":"points","showlegend":false,"xaxis":"x","yaxis":"y","hoverinfo":"text","frame":null},{"x":[1500,1613.92405063291,1727.84810126582,1841.77215189873,1955.69620253165,2069.62025316456,2183.54430379747,2297.46835443038,2411.39240506329,2525.3164556962,2639.24050632911,2753.16455696203,2867.08860759494,2981.01265822785,3094.93670886076,3208.86075949367,3322.78481012658,3436.70886075949,3550.6329113924,3664.55696202532,3778.48101265823,3892.40506329114,4006.32911392405,4120.25316455696,4234.17721518987,4348.10126582278,4462.0253164557,4575.94936708861,4689.87341772152,4803.79746835443,4917.72151898734,5031.64556962025,5145.56962025316,5259.49367088608,5373.41772151899,5487.3417721519,5601.26582278481,5715.18987341772,5829.11392405063,5943.03797468354,6056.96202531646,6170.88607594937,6284.81012658228,6398.73417721519,6512.6582278481,6626.58227848101,6740.50632911392,6854.43037974684,6968.35443037975,7082.27848101266,7196.20253164557,7310.12658227848,7424.05063291139,7537.9746835443,7651.89873417722,7765.82278481013,7879.74683544304,7993.67088607595,8107.59493670886,8221.51898734177,8335.44303797468,8449.36708860759,8563.29113924051,8677.21518987342,8791.13924050633,8905.06329113924,9018.98734177215,9132.91139240506,9246.83544303797,9360.75949367088,9474.6835443038,9588.60759493671,9702.53164556962,9816.45569620253,9930.37974683544,10044.3037974684,10158.2278481013,10272.1518987342,10386.0759493671,10500,10500,10500,10386.0759493671,10272.1518987342,10158.2278481013,10044.3037974684,9930.37974683544,9816.45569620253,9702.53164556962,9588.60759493671,9474.6835443038,9360.75949367088,9246.83544303797,9132.91139240506,9018.98734177215,8905.06329113924,8791.13924050633,8677.21518987342,8563.29113924051,8449.36708860759,8335.44303797468,8221.51898734177,8107.59493670886,7993.67088607595,7879.74683544304,7765.82278481013,7651.89873417722,7537.9746835443,7424.05063291139,7310.12658227848,7196.20253164557,7082.27848101266,6968.35443037975,6854.43037974684,6740.50632911392,6626.58227848101,6512.6582278481,6398.73417721519,6284.81012658228,6170.88607594937,6056.96202531646,5943.03797468354,5829.11392405063,5715.18987341772,5601.26582278481,5487.3417721519,5373.41772151899,5259.49367088608,5145.56962025316,5031.64556962025,4917.72151898734,4803.79746835443,4689.87341772152,4575.94936708861,4462.0253164557,4348.10126582278,4234.17721518987,4120.25316455696,4006.32911392405,3892.40506329114,3778.48101265823,3664.55696202532,3550.6329113924,3436.70886075949,3322.78481012658,3208.86075949367,3094.93670886076,2981.01265822785,2867.08860759494,2753.16455696203,2639.24050632911,2525.3164556962,2411.39240506329,2297.46835443038,2183.54430379747,2069.62025316456,1955.69620253165,1841.77215189873,1727.84810126582,1613.92405063291,1500,1500],"y":[-2.80162464887787,-2.42251752916437,-2.04375331381859,-1.6653703535557,-1.28741225175807,-0.909928636170643,-0.532976023999004,-0.156618775850865,0.219069877132232,0.594006765866182,0.96809773410372,1.34123670183196,1.71330498344164,2.08417106139968,2.45369108004182,2.82171037989456,3.18806641631716,3.55259336153847,3.91512853567039,4.27552052195122,4.63363840754703,4.98938113644379,5.34268562003615,5.69353220226794,6.04194642623183,6.38799674439504,6.73178863465207,7.07345624394975,7.4131529780082,7.75104235986977,8.08729011365935,8.42205797300013,8.75549931279928,9.08775643120529,9.41895917144297,9.74922453978585,10.0786570053755,10.4073492255801,10.735383004334,11.0628303482397,11.3897545313787,11.7162111142694,12.0422488867504,12.3679107208988,12.6932343305243,13.0182529400489,13.3429958690548,13.667489040423,13.9917554204922,14.3158153994993,14.6396871200164,14.9633867603842,15.2869287793604,15.6103261274329,15.9335904295306,16.2567321432095,16.5797606958158,16.9026846036187,17.2255115754696,17.5482486031681,17.8709020403904,18.1934776717669,18.5159807734563,18.8384161663721,19.1607882630448,19.4831011089634,19.8053584191186,20.1275636103674,20.4497198301516,20.7718299820296,21.093896748417,21.4159226108777,21.7379098682616,22.0598606529468,22.3817769454071,22.7036605873013,23.0255132932527,23.3473366614663,23.6691321833138,23.990901252,23.990901252,27.6415007420809,27.2587966797635,26.8761190706074,26.4934693078174,26.1108488827652,25.7282593936559,25.3457025551125,24.9631802087941,24.5806943351745,24.1982470666315,23.8158407020153,23.4334777228897,23.0511608116703,22.6688928719155,22.2866770510672,21.9045167659822,21.5224157316513,21.1403779935635,20.7584079642493,20.3765104646222,19.9946907708409,19.6129546675358,19.2313085083831,18.8497592851824,18.4683147067852,18.0869832894605,17.7057744605545,17.3246986776235,16.943767565596,16.5629940749603,16.1823926644738,15.8019795124773,15.4217727615429,15.0417928019075,14.6620625999098,14.2826080784309,13.9034585570527,13.5246472601975,13.1462119016749,12.7681953535621,12.3906464056975,12.0136206185996,11.6371812663499,11.2614003555509,10.8863596901369,10.5121519274762,10.1388815367103,9.76666552411272,9.39563373290828,9.02592846124547,8.65770308403146,8.29111933488944,7.92634293794429,7.56353741623837,7.20285617549181,6.84443336265143,6.48837445561172,6.13474790683992,5.78357925942869,5.43484885732185,5.08849361191407,4.74441246719131,4.40247451031963,4.06252832453735,3.72441122995636,3.3879573988055,3.05300428644405,2.7193972333985,2.38699238400459,2.05565822072923,1.72527605796318,1.39573981569354,1.06695533767304,0.738839454817585,0.41131893598563,0.0843294205694645,-0.242185608636496,-0.568275779377197,-0.893984695035017,-1.21935070632511,-2.80162464887787],"text":["Salary:  1500.000<br />points: -2.0104877","Salary:  1613.924<br />points: -1.6582511","Salary:  1727.848<br />points: -1.3060145","Salary:  1841.772<br />points: -0.9537780","Salary:  1955.696<br />points: -0.6015414","Salary:  2069.620<br />points: -0.2493049","Salary:  2183.544<br />points:  0.1029317","Salary:  2297.468<br />points:  0.4551683","Salary:  2411.392<br />points:  0.8074048","Salary:  2525.316<br />points:  1.1596414","Salary:  2639.241<br />points:  1.5118780","Salary:  2753.165<br />points:  1.8641145","Salary:  2867.089<br />points:  2.2163511","Salary:  2981.013<br />points:  2.5685877","Salary:  3094.937<br />points:  2.9208242","Salary:  3208.861<br />points:  3.2730608","Salary:  3322.785<br />points:  3.6252974","Salary:  3436.709<br />points:  3.9775339","Salary:  3550.633<br />points:  4.3297705","Salary:  3664.557<br />points:  4.6820071","Salary:  3778.481<br />points:  5.0342436","Salary:  3892.405<br />points:  5.3864802","Salary:  4006.329<br />points:  5.7387168","Salary:  4120.253<br />points:  6.0909533","Salary:  4234.177<br />points:  6.4431899","Salary:  4348.101<br />points:  6.7954265","Salary:  4462.025<br />points:  7.1476630","Salary:  4575.949<br />points:  7.4998996","Salary:  4689.873<br />points:  7.8521362","Salary:  4803.797<br />points:  8.2043727","Salary:  4917.722<br />points:  8.5566093","Salary:  5031.646<br />points:  8.9088459","Salary:  5145.570<br />points:  9.2610824","Salary:  5259.494<br />points:  9.6133190","Salary:  5373.418<br />points:  9.9655555","Salary:  5487.342<br />points: 10.3177921","Salary:  5601.266<br />points: 10.6700287","Salary:  5715.190<br />points: 11.0222652","Salary:  5829.114<br />points: 11.3745018","Salary:  5943.038<br />points: 11.7267384","Salary:  6056.962<br />points: 12.0789749","Salary:  6170.886<br />points: 12.4312115","Salary:  6284.810<br />points: 12.7834481","Salary:  6398.734<br />points: 13.1356846","Salary:  6512.658<br />points: 13.4879212","Salary:  6626.582<br />points: 13.8401578","Salary:  6740.506<br />points: 14.1923943","Salary:  6854.430<br />points: 14.5446309","Salary:  6968.354<br />points: 14.8968675","Salary:  7082.278<br />points: 15.2491040","Salary:  7196.203<br />points: 15.6013406","Salary:  7310.127<br />points: 15.9535772","Salary:  7424.051<br />points: 16.3058137","Salary:  7537.975<br />points: 16.6580503","Salary:  7651.899<br />points: 17.0102869","Salary:  7765.823<br />points: 17.3625234","Salary:  7879.747<br />points: 17.7147600","Salary:  7993.671<br />points: 18.0669966","Salary:  8107.595<br />points: 18.4192331","Salary:  8221.519<br />points: 18.7714697","Salary:  8335.443<br />points: 19.1237063","Salary:  8449.367<br />points: 19.4759428","Salary:  8563.291<br />points: 19.8281794","Salary:  8677.215<br />points: 20.1804159","Salary:  8791.139<br />points: 20.5326525","Salary:  8905.063<br />points: 20.8848891","Salary:  9018.987<br />points: 21.2371256","Salary:  9132.911<br />points: 21.5893622","Salary:  9246.835<br />points: 21.9415988","Salary:  9360.759<br />points: 22.2938353","Salary:  9474.684<br />points: 22.6460719","Salary:  9588.608<br />points: 22.9983085","Salary:  9702.532<br />points: 23.3505450","Salary:  9816.456<br />points: 23.7027816","Salary:  9930.380<br />points: 24.0550182","Salary: 10044.304<br />points: 24.4072547","Salary: 10158.228<br />points: 24.7594913","Salary: 10272.152<br />points: 25.1117279","Salary: 10386.076<br />points: 25.4639644","Salary: 10500.000<br />points: 25.8162010","Salary: 10500.000<br />points: 25.8162010","Salary: 10500.000<br />points: 25.8162010","Salary: 10386.076<br />points: 25.4639644","Salary: 10272.152<br />points: 25.1117279","Salary: 10158.228<br />points: 24.7594913","Salary: 10044.304<br />points: 24.4072547","Salary:  9930.380<br />points: 24.0550182","Salary:  9816.456<br />points: 23.7027816","Salary:  9702.532<br />points: 23.3505450","Salary:  9588.608<br />points: 22.9983085","Salary:  9474.684<br />points: 22.6460719","Salary:  9360.759<br />points: 22.2938353","Salary:  9246.835<br />points: 21.9415988","Salary:  9132.911<br />points: 21.5893622","Salary:  9018.987<br />points: 21.2371256","Salary:  8905.063<br />points: 20.8848891","Salary:  8791.139<br />points: 20.5326525","Salary:  8677.215<br />points: 20.1804159","Salary:  8563.291<br />points: 19.8281794","Salary:  8449.367<br />points: 19.4759428","Salary:  8335.443<br />points: 19.1237063","Salary:  8221.519<br />points: 18.7714697","Salary:  8107.595<br />points: 18.4192331","Salary:  7993.671<br />points: 18.0669966","Salary:  7879.747<br />points: 17.7147600","Salary:  7765.823<br />points: 17.3625234","Salary:  7651.899<br />points: 17.0102869","Salary:  7537.975<br />points: 16.6580503","Salary:  7424.051<br />points: 16.3058137","Salary:  7310.127<br />points: 15.9535772","Salary:  7196.203<br />points: 15.6013406","Salary:  7082.278<br />points: 15.2491040","Salary:  6968.354<br />points: 14.8968675","Salary:  6854.430<br />points: 14.5446309","Salary:  6740.506<br />points: 14.1923943","Salary:  6626.582<br />points: 13.8401578","Salary:  6512.658<br />points: 13.4879212","Salary:  6398.734<br />points: 13.1356846","Salary:  6284.810<br />points: 12.7834481","Salary:  6170.886<br />points: 12.4312115","Salary:  6056.962<br />points: 12.0789749","Salary:  5943.038<br />points: 11.7267384","Salary:  5829.114<br />points: 11.3745018","Salary:  5715.190<br />points: 11.0222652","Salary:  5601.266<br />points: 10.6700287","Salary:  5487.342<br />points: 10.3177921","Salary:  5373.418<br />points:  9.9655555","Salary:  5259.494<br />points:  9.6133190","Salary:  5145.570<br />points:  9.2610824","Salary:  5031.646<br />points:  8.9088459","Salary:  4917.722<br />points:  8.5566093","Salary:  4803.797<br />points:  8.2043727","Salary:  4689.873<br />points:  7.8521362","Salary:  4575.949<br />points:  7.4998996","Salary:  4462.025<br />points:  7.1476630","Salary:  4348.101<br />points:  6.7954265","Salary:  4234.177<br />points:  6.4431899","Salary:  4120.253<br />points:  6.0909533","Salary:  4006.329<br />points:  5.7387168","Salary:  3892.405<br />points:  5.3864802","Salary:  3778.481<br />points:  5.0342436","Salary:  3664.557<br />points:  4.6820071","Salary:  3550.633<br />points:  4.3297705","Salary:  3436.709<br />points:  3.9775339","Salary:  3322.785<br />points:  3.6252974","Salary:  3208.861<br />points:  3.2730608","Salary:  3094.937<br />points:  2.9208242","Salary:  2981.013<br />points:  2.5685877","Salary:  2867.089<br />points:  2.2163511","Salary:  2753.165<br />points:  1.8641145","Salary:  2639.241<br />points:  1.5118780","Salary:  2525.316<br />points:  1.1596414","Salary:  2411.392<br />points:  0.8074048","Salary:  2297.468<br />points:  0.4551683","Salary:  2183.544<br />points:  0.1029317","Salary:  2069.620<br />points: -0.2493049","Salary:  1955.696<br />points: -0.6015414","Salary:  1841.772<br />points: -0.9537780","Salary:  1727.848<br />points: -1.3060145","Salary:  1613.924<br />points: -1.6582511","Salary:  1500.000<br />points: -2.0104877","Salary:  1500.000<br />points: -2.0104877"],"type":"scatter","mode":"lines","line":{"width":3.77952755905512,"color":"transparent","dash":"solid"},"fill":"toself","fillcolor":"rgba(153,153,153,0.4)","hoveron":"points","hoverinfo":"x+y","showlegend":false,"xaxis":"x","yaxis":"y","frame":null}],"layout":{"margin":{"t":43.7625570776256,"r":7.30593607305936,"b":40.1826484018265,"l":37.2602739726027},"font":{"color":"rgba(0,0,0,1)","family":"","size":14.6118721461187},"title":{"text":"Who makes it into Optimized Lineups?","font":{"color":"rgba(0,0,0,1)","family":"","size":17.5342465753425},"x":0,"xref":"paper"},"xaxis":{"domain":[0,1],"automargin":true,"type":"linear","autorange":false,"range":[1050,10950],"tickmode":"array","ticktext":["$2,500","$5,000","$7,500","$10,000"],"tickvals":[2500,5000,7500,10000],"categoryorder":"array","categoryarray":["$2,500","$5,000","$7,500","$10,000"],"nticks":null,"ticks":"","tickcolor":null,"ticklen":3.65296803652968,"tickwidth":0,"showticklabels":true,"tickfont":{"color":"rgba(77,77,77,1)","family":"","size":11.689497716895},"tickangle":-0,"showline":false,"linecolor":null,"linewidth":0,"showgrid":true,"gridcolor":"rgba(235,235,235,1)","gridwidth":0.66417600664176,"zeroline":false,"anchor":"y","title":{"text":"Salary","font":{"color":"rgba(0,0,0,1)","family":"","size":14.6118721461187}},"hoverformat":".2f"},"yaxis":{"domain":[0,1],"automargin":true,"type":"linear","autorange":false,"range":[-4.32378091842581,29.1636570116289],"tickmode":"array","ticktext":["0","10","20"],"tickvals":[0,10,20],"categoryorder":"array","categoryarray":["0","10","20"],"nticks":null,"ticks":"","tickcolor":null,"ticklen":3.65296803652968,"tickwidth":0,"showticklabels":true,"tickfont":{"color":"rgba(77,77,77,1)","family":"","size":11.689497716895},"tickangle":-0,"showline":false,"linecolor":null,"linewidth":0,"showgrid":true,"gridcolor":"rgba(235,235,235,1)","gridwidth":0.66417600664176,"zeroline":false,"anchor":"x","title":{"text":"Projected Points","font":{"color":"rgba(0,0,0,1)","family":"","size":14.6118721461187}},"hoverformat":".2f"},"shapes":[{"type":"rect","fillcolor":null,"line":{"color":null,"width":0,"linetype":[]},"yref":"paper","xref":"paper","x0":0,"x1":1,"y0":0,"y1":1}],"showlegend":true,"legend":{"bgcolor":null,"bordercolor":null,"borderwidth":0,"font":{"color":"rgba(0,0,0,1)","family":"","size":11.689497716895},"y":0.93503937007874},"annotations":[{"text":"<br />sd_pts","x":1.02,"y":1,"showarrow":false,"ax":0,"ay":0,"font":{"color":"rgba(0,0,0,1)","family":"","size":14.6118721461187},"xref":"paper","yref":"paper","textangle":-0,"xanchor":"left","yanchor":"bottom","legendTitle":true}],"hovermode":"closest","barmode":"relative"},"config":{"doubleClick":"reset","showSendToCloud":false},"source":"A","attrs":{"2dc4192e229f":{"x":{},"y":{},"colour":{},"size":{},"text":{},"type":"scatter"},"2dc461785b5a":{"x":{},"y":{}}},"cur_data":"2dc4192e229f","visdat":{"2dc4192e229f":["function (y) ","x"],"2dc461785b5a":["function (y) ","x"]},"highlight":{"on":"plotly_click","persistent":false,"dynamic":false,"selectize":false,"opacityDim":0.2,"selected":{"opacity":1},"debounce":0},"shinyEvents":["plotly_hover","plotly_click","plotly_selected","plotly_relayout","plotly_brushed","plotly_brushing","plotly_clickannotation","plotly_doubleclick","plotly_deselect","plotly_afterplot","plotly_sunburstclick"],"base_url":"https://plot.ly"},"evals":[],"jsHooks":[]}</script>
+<p>This week, not many players below the line get into lineups, but some above get excluded due to their small uncertainty. Remember, this method takes players who have the potential to blow up rather than players with solid floors.</p>
+</div>
+<div id="flex-configurations" class="section level3">
+<h3>Flex Configurations</h3>
+<p>In DFS lineups, you have an extra spot to use on an RB, WR, and TE of your chosing</p>
+<pre class="r"><code>sim_lu %&gt;%
+  group_by(lineup) %&gt;%
+  mutate(lineup_pts=sum(pts_pred)) %&gt;%
+  group_by(lineup, position) %&gt;%
+  mutate(n=n()) %&gt;%
+  select(lineup, position, n, lineup_pts) %&gt;%
+  distinct() %&gt;%
+  spread(key=position, value=n) %&gt;%
+  filter(RB&gt;=2, TE&gt;=1, WR&gt;=3) %&gt;%
+  mutate(flex=case_when(RB==3 ~ &#39;RB&#39;,
+                        TE==2 ~ &#39;TE&#39;,
+                        WR==4 ~ &#39;WR&#39;)) %&gt;%
+  group_by(flex) %&gt;%
+  dplyr::summarize(pts=median(lineup_pts),
+                   cases=n()) %&gt;%
+  knitr::kable() %&gt;%
+  kable_styling(full_width = FALSE)</code></pre>
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+flex
+</th>
+<th style="text-align:right;">
+pts
+</th>
+<th style="text-align:right;">
+cases
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+152.5108
+</td>
+<td style="text-align:right;">
+6622
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+152.0526
+</td>
+<td style="text-align:right;">
+1839
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+151.8612
+</td>
+<td style="text-align:right;">
+1539
+</td>
+</tr>
+</tbody>
+</table>
+<p>HEAVY RB week this week, with more than 60% of Flex Spots being taken by RBs</p>
+</div>
+<div id="pareto-lineups" class="section level3">
+<h3>Pareto Lineups</h3>
+<pre class="r"><code>lu_df &lt;- sim_lu %&gt;%
+  group_by(lineup) %&gt;%
+  dplyr::summarize(lineup_pts=sum(pts_pred),
+                   lineup_sd=sum(sd_pts)) %&gt;%
+  ungroup()
+
+pto &lt;- psel(lu_df, low(lineup_sd) * high(lineup_pts))
+
+
+ggplot(lu_df, aes(y=lineup_pts, x=lineup_sd)) +
+  geom_point() +
+  geom_point(data=pto, size=5) +
+  ylab(&#39;Lineup Points&#39;) +
+  xlab(&#39;Lineup Points St Dev&#39;) +
+  ggtitle(&#39;Lineup Points vs Uncertainty&#39;,
+          subtitle = &#39;Pareto Lineups Bolded&#39;)</code></pre>
+<p><img src="/post/2019-11-17-week-11-draftkings-optimal-lineups_files/figure-html/pareto-1.png" width="672" /></p>
+<p>Here’s a look at the pareto lineups.</p>
+<pre class="r"><code>psel(lu_df, low(lineup_sd) * high(lineup_pts)) %&gt;%
+  left_join(sim_lu, by=&#39;lineup&#39;) %&gt;%
+  group_by(lineup) %&gt;%
+  arrange(lineup_pts, position, desc(Salary)) %&gt;%
+  select(lineup, lineup_pts, lineup_sd, Name, team, position, pts_pred, sd_pts, Salary) %&gt;%
+  mutate_at(vars(lineup_pts, lineup_sd, pts_pred, sd_pts), function(x) round(x, 2)) %&gt;%
+  knitr::kable() %&gt;%
+  kable_styling(fixed_thead = T) %&gt;%
+  column_spec(1:3, bold=TRUE) %&gt;%
+  collapse_rows(columns = 1:3, valign = &#39;top&#39;) %&gt;%
+  scroll_box(height = &#39;700px&#39;, width = &#39;100%&#39;)</code></pre>
+<div style="border: 1px solid #ddd; padding: 0px; overflow-y: scroll; height:700px; overflow-x: scroll; width:100%; ">
+<table class="table" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;position: sticky; top:0; background-color: #FFFFFF;">
+lineup
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;position: sticky; top:0; background-color: #FFFFFF;">
+lineup_pts
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;position: sticky; top:0; background-color: #FFFFFF;">
+lineup_sd
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;position: sticky; top:0; background-color: #FFFFFF;">
+Name
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;position: sticky; top:0; background-color: #FFFFFF;">
+team
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;position: sticky; top:0; background-color: #FFFFFF;">
+position
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;position: sticky; top:0; background-color: #FFFFFF;">
+pts_pred
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;position: sticky; top:0; background-color: #FFFFFF;">
+sd_pts
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;position: sticky; top:0; background-color: #FFFFFF;">
+Salary
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+7674
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+142.50
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+9.78
+</td>
+<td style="text-align:left;">
+Dolphins
+</td>
+<td style="text-align:left;">
+MIA
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+7.10
+</td>
+<td style="text-align:right;">
+1.01
+</td>
+<td style="text-align:right;">
+2500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Lamar Jackson
+</td>
+<td style="text-align:left;">
+BAL
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+26.41
+</td>
+<td style="text-align:right;">
+1.58
+</td>
+<td style="text-align:right;">
+7700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Leonard Fournette
+</td>
+<td style="text-align:left;">
+JAC
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+21.32
+</td>
+<td style="text-align:right;">
+1.98
+</td>
+<td style="text-align:right;">
+7900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Alvin Kamara
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+21.47
+</td>
+<td style="text-align:right;">
+1.11
+</td>
+<td style="text-align:right;">
+7400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Kenyan Drake
+</td>
+<td style="text-align:left;">
+ARI
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+15.47
+</td>
+<td style="text-align:right;">
+1.47
+</td>
+<td style="text-align:right;">
+5400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dallas Goedert
+</td>
+<td style="text-align:left;">
+PHI
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+9.35
+</td>
+<td style="text-align:right;">
+0.97
+</td>
+<td style="text-align:right;">
+3200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Courtland Sutton
+</td>
+<td style="text-align:left;">
+DEN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+15.58
+</td>
+<td style="text-align:right;">
+0.82
+</td>
+<td style="text-align:right;">
+6000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Boyd
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+13.46
+</td>
+<td style="text-align:right;">
+0.50
+</td>
+<td style="text-align:right;">
+5200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DeVante Parker
+</td>
+<td style="text-align:left;">
+MIA
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+12.34
+</td>
+<td style="text-align:right;">
+0.35
+</td>
+<td style="text-align:right;">
+4700
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+7722
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+146.57
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+10.24
+</td>
+<td style="text-align:left;">
+Cardinals
+</td>
+<td style="text-align:left;">
+ARI
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+5.81
+</td>
+<td style="text-align:right;">
+1.42
+</td>
+<td style="text-align:right;">
+1500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dak Prescott
+</td>
+<td style="text-align:left;">
+DAL
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+22.59
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:right;">
+6700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Alvin Kamara
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+21.13
+</td>
+<td style="text-align:right;">
+1.11
+</td>
+<td style="text-align:right;">
+7400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Duke Johnson
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+11.27
+</td>
+<td style="text-align:right;">
+1.19
+</td>
+<td style="text-align:right;">
+4000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Zach Ertz
+</td>
+<td style="text-align:left;">
+PHI
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+13.80
+</td>
+<td style="text-align:right;">
+0.67
+</td>
+<td style="text-align:right;">
+5000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Julio Jones
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+22.72
+</td>
+<td style="text-align:right;">
+1.80
+</td>
+<td style="text-align:right;">
+7500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Mike Evans
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+20.86
+</td>
+<td style="text-align:right;">
+1.75
+</td>
+<td style="text-align:right;">
+7400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Curtis Samuel
+</td>
+<td style="text-align:left;">
+CAR
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.27
+</td>
+<td style="text-align:right;">
+1.24
+</td>
+<td style="text-align:right;">
+5300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Boyd
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.11
+</td>
+<td style="text-align:right;">
+0.50
+</td>
+<td style="text-align:right;">
+5200
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+7776
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+147.94
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+10.94
+</td>
+<td style="text-align:left;">
+Cardinals
+</td>
+<td style="text-align:left;">
+ARI
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+6.63
+</td>
+<td style="text-align:right;">
+1.42
+</td>
+<td style="text-align:right;">
+1500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dak Prescott
+</td>
+<td style="text-align:left;">
+DAL
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+22.36
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:right;">
+6700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dalvin Cook
+</td>
+<td style="text-align:left;">
+MIN
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+26.74
+</td>
+<td style="text-align:right;">
+2.14
+</td>
+<td style="text-align:right;">
+8900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Alvin Kamara
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+21.34
+</td>
+<td style="text-align:right;">
+1.11
+</td>
+<td style="text-align:right;">
+7400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Eifert
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+8.60
+</td>
+<td style="text-align:right;">
+0.75
+</td>
+<td style="text-align:right;">
+3200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Michael Thomas
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+27.34
+</td>
+<td style="text-align:right;">
+1.80
+</td>
+<td style="text-align:right;">
+9900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Boyd
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.32
+</td>
+<td style="text-align:right;">
+0.50
+</td>
+<td style="text-align:right;">
+5200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Danny Amendola
+</td>
+<td style="text-align:left;">
+DET
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+10.86
+</td>
+<td style="text-align:right;">
+1.28
+</td>
+<td style="text-align:right;">
+4200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Kendrick Bourne
+</td>
+<td style="text-align:left;">
+SFO
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+9.75
+</td>
+<td style="text-align:right;">
+1.39
+</td>
+<td style="text-align:right;">
+3000
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+5738
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+149.65
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+11.35
+</td>
+<td style="text-align:left;">
+Lions
+</td>
+<td style="text-align:left;">
+DET
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+6.93
+</td>
+<td style="text-align:right;">
+1.18
+</td>
+<td style="text-align:right;">
+1800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dak Prescott
+</td>
+<td style="text-align:left;">
+DAL
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+22.31
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:right;">
+6700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Alvin Kamara
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+20.85
+</td>
+<td style="text-align:right;">
+1.11
+</td>
+<td style="text-align:right;">
+7400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Miles Sanders
+</td>
+<td style="text-align:left;">
+PHI
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+14.16
+</td>
+<td style="text-align:right;">
+2.58
+</td>
+<td style="text-align:right;">
+4100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Greg Olsen
+</td>
+<td style="text-align:left;">
+CAR
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+12.10
+</td>
+<td style="text-align:right;">
+1.07
+</td>
+<td style="text-align:right;">
+3900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Julio Jones
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+22.83
+</td>
+<td style="text-align:right;">
+1.80
+</td>
+<td style="text-align:right;">
+7500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Mike Evans
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+20.21
+</td>
+<td style="text-align:right;">
+1.75
+</td>
+<td style="text-align:right;">
+7400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Courtland Sutton
+</td>
+<td style="text-align:left;">
+DEN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+16.11
+</td>
+<td style="text-align:right;">
+0.82
+</td>
+<td style="text-align:right;">
+6000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Boyd
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.17
+</td>
+<td style="text-align:right;">
+0.50
+</td>
+<td style="text-align:right;">
+5200
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+7422
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+150.16
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+11.47
+</td>
+<td style="text-align:left;">
+Cardinals
+</td>
+<td style="text-align:left;">
+ARI
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+7.17
+</td>
+<td style="text-align:right;">
+1.42
+</td>
+<td style="text-align:right;">
+1500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Lamar Jackson
+</td>
+<td style="text-align:left;">
+BAL
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+25.72
+</td>
+<td style="text-align:right;">
+1.58
+</td>
+<td style="text-align:right;">
+7700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Alvin Kamara
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+19.99
+</td>
+<td style="text-align:right;">
+1.11
+</td>
+<td style="text-align:right;">
+7400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+James White
+</td>
+<td style="text-align:left;">
+NEP
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+15.45
+</td>
+<td style="text-align:right;">
+0.96
+</td>
+<td style="text-align:right;">
+5400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Zach Ertz
+</td>
+<td style="text-align:left;">
+PHI
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+13.62
+</td>
+<td style="text-align:right;">
+0.67
+</td>
+<td style="text-align:right;">
+5000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Julio Jones
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+23.84
+</td>
+<td style="text-align:right;">
+1.80
+</td>
+<td style="text-align:right;">
+7500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Christian Kirk
+</td>
+<td style="text-align:left;">
+ARI
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+15.06
+</td>
+<td style="text-align:right;">
+0.90
+</td>
+<td style="text-align:right;">
+5700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Boyd
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.78
+</td>
+<td style="text-align:right;">
+0.50
+</td>
+<td style="text-align:right;">
+5200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Kenny Stills
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.53
+</td>
+<td style="text-align:right;">
+2.53
+</td>
+<td style="text-align:right;">
+4600
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+2258
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+151.03
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+11.48
+</td>
+<td style="text-align:left;">
+Cardinals
+</td>
+<td style="text-align:left;">
+ARI
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+6.32
+</td>
+<td style="text-align:right;">
+1.42
+</td>
+<td style="text-align:right;">
+1500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dak Prescott
+</td>
+<td style="text-align:left;">
+DAL
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+22.96
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:right;">
+6700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dalvin Cook
+</td>
+<td style="text-align:left;">
+MIN
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+26.62
+</td>
+<td style="text-align:right;">
+2.14
+</td>
+<td style="text-align:right;">
+8900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Alvin Kamara
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+21.44
+</td>
+<td style="text-align:right;">
+1.11
+</td>
+<td style="text-align:right;">
+7400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Greg Olsen
+</td>
+<td style="text-align:left;">
+CAR
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+12.93
+</td>
+<td style="text-align:right;">
+1.07
+</td>
+<td style="text-align:right;">
+3900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Eric Ebron
+</td>
+<td style="text-align:left;">
+IND
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+11.73
+</td>
+<td style="text-align:right;">
+1.64
+</td>
+<td style="text-align:right;">
+3600
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Julio Jones
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+20.68
+</td>
+<td style="text-align:right;">
+1.80
+</td>
+<td style="text-align:right;">
+7500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Curtis Samuel
+</td>
+<td style="text-align:left;">
+CAR
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.22
+</td>
+<td style="text-align:right;">
+1.24
+</td>
+<td style="text-align:right;">
+5300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Boyd
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.12
+</td>
+<td style="text-align:right;">
+0.50
+</td>
+<td style="text-align:right;">
+5200
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+7077
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+155.14
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+11.94
+</td>
+<td style="text-align:left;">
+Redskins
+</td>
+<td style="text-align:left;">
+WAS
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+10.22
+</td>
+<td style="text-align:right;">
+1.20
+</td>
+<td style="text-align:right;">
+2800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dak Prescott
+</td>
+<td style="text-align:left;">
+DAL
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+22.65
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:right;">
+6700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dalvin Cook
+</td>
+<td style="text-align:left;">
+MIN
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+28.66
+</td>
+<td style="text-align:right;">
+2.14
+</td>
+<td style="text-align:right;">
+8900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Alvin Kamara
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+22.53
+</td>
+<td style="text-align:right;">
+1.11
+</td>
+<td style="text-align:right;">
+7400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Brian Hill
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+18.49
+</td>
+<td style="text-align:right;">
+2.42
+</td>
+<td style="text-align:right;">
+4800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+O.J. Howard
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+9.97
+</td>
+<td style="text-align:right;">
+0.97
+</td>
+<td style="text-align:right;">
+3600
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DeAndre Hopkins
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+22.55
+</td>
+<td style="text-align:right;">
+1.81
+</td>
+<td style="text-align:right;">
+8100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DeVante Parker
+</td>
+<td style="text-align:left;">
+MIA
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+12.33
+</td>
+<td style="text-align:right;">
+0.35
+</td>
+<td style="text-align:right;">
+4700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Kendrick Bourne
+</td>
+<td style="text-align:left;">
+SFO
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+7.75
+</td>
+<td style="text-align:right;">
+1.39
+</td>
+<td style="text-align:right;">
+3000
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+5943
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+156.00
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+12.64
+</td>
+<td style="text-align:left;">
+Broncos
+</td>
+<td style="text-align:left;">
+DEN
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+6.53
+</td>
+<td style="text-align:right;">
+0.73
+</td>
+<td style="text-align:right;">
+2400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dak Prescott
+</td>
+<td style="text-align:left;">
+DAL
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+22.68
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:right;">
+6700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dalvin Cook
+</td>
+<td style="text-align:left;">
+MIN
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+26.09
+</td>
+<td style="text-align:right;">
+2.14
+</td>
+<td style="text-align:right;">
+8900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Brian Hill
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+17.04
+</td>
+<td style="text-align:right;">
+2.42
+</td>
+<td style="text-align:right;">
+4800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Miles Sanders
+</td>
+<td style="text-align:left;">
+PHI
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+16.75
+</td>
+<td style="text-align:right;">
+2.58
+</td>
+<td style="text-align:right;">
+4100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Zach Ertz
+</td>
+<td style="text-align:left;">
+PHI
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+13.96
+</td>
+<td style="text-align:right;">
+0.67
+</td>
+<td style="text-align:right;">
+5000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Julio Jones
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+22.97
+</td>
+<td style="text-align:right;">
+1.80
+</td>
+<td style="text-align:right;">
+7500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Curtis Samuel
+</td>
+<td style="text-align:left;">
+CAR
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+15.27
+</td>
+<td style="text-align:right;">
+1.24
+</td>
+<td style="text-align:right;">
+5300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Boyd
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.72
+</td>
+<td style="text-align:right;">
+0.50
+</td>
+<td style="text-align:right;">
+5200
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+3116
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+156.18
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+13.14
+</td>
+<td style="text-align:left;">
+Cardinals
+</td>
+<td style="text-align:left;">
+ARI
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+8.22
+</td>
+<td style="text-align:right;">
+1.42
+</td>
+<td style="text-align:right;">
+1500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deshaun Watson
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+24.01
+</td>
+<td style="text-align:right;">
+1.74
+</td>
+<td style="text-align:right;">
+6800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dalvin Cook
+</td>
+<td style="text-align:left;">
+MIN
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+30.04
+</td>
+<td style="text-align:right;">
+2.14
+</td>
+<td style="text-align:right;">
+8900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Alvin Kamara
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+20.77
+</td>
+<td style="text-align:right;">
+1.11
+</td>
+<td style="text-align:right;">
+7400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Brian Hill
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+13.92
+</td>
+<td style="text-align:right;">
+2.42
+</td>
+<td style="text-align:right;">
+4800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Zach Ertz
+</td>
+<td style="text-align:left;">
+PHI
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+14.54
+</td>
+<td style="text-align:right;">
+0.67
+</td>
+<td style="text-align:right;">
+5000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Mike Evans
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+20.62
+</td>
+<td style="text-align:right;">
+1.75
+</td>
+<td style="text-align:right;">
+7400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Boyd
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.85
+</td>
+<td style="text-align:right;">
+0.50
+</td>
+<td style="text-align:right;">
+5200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Kendrick Bourne
+</td>
+<td style="text-align:left;">
+SFO
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+9.20
+</td>
+<td style="text-align:right;">
+1.39
+</td>
+<td style="text-align:right;">
+3000
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+7102
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+158.92
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+13.19
+</td>
+<td style="text-align:left;">
+Lions
+</td>
+<td style="text-align:left;">
+DET
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+6.16
+</td>
+<td style="text-align:right;">
+1.18
+</td>
+<td style="text-align:right;">
+1800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dak Prescott
+</td>
+<td style="text-align:left;">
+DAL
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+22.81
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:right;">
+6700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dalvin Cook
+</td>
+<td style="text-align:left;">
+MIN
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+26.69
+</td>
+<td style="text-align:right;">
+2.14
+</td>
+<td style="text-align:right;">
+8900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Alvin Kamara
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+22.69
+</td>
+<td style="text-align:right;">
+1.11
+</td>
+<td style="text-align:right;">
+7400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Miles Sanders
+</td>
+<td style="text-align:left;">
+PHI
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+18.32
+</td>
+<td style="text-align:right;">
+2.58
+</td>
+<td style="text-align:right;">
+4100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Eric Ebron
+</td>
+<td style="text-align:left;">
+IND
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+12.83
+</td>
+<td style="text-align:right;">
+1.64
+</td>
+<td style="text-align:right;">
+3600
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Julio Jones
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+21.25
+</td>
+<td style="text-align:right;">
+1.80
+</td>
+<td style="text-align:right;">
+7500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Boyd
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.78
+</td>
+<td style="text-align:right;">
+0.50
+</td>
+<td style="text-align:right;">
+5200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dede Westbrook
+</td>
+<td style="text-align:left;">
+JAC
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+13.40
+</td>
+<td style="text-align:right;">
+1.68
+</td>
+<td style="text-align:right;">
+4500
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+5223
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+159.34
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+13.23
+</td>
+<td style="text-align:left;">
+Cardinals
+</td>
+<td style="text-align:left;">
+ARI
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+6.63
+</td>
+<td style="text-align:right;">
+1.42
+</td>
+<td style="text-align:right;">
+1500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dak Prescott
+</td>
+<td style="text-align:left;">
+DAL
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+23.06
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:right;">
+6700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Alvin Kamara
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+23.88
+</td>
+<td style="text-align:right;">
+1.11
+</td>
+<td style="text-align:right;">
+7400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Josh Jacobs
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+21.25
+</td>
+<td style="text-align:right;">
+2.50
+</td>
+<td style="text-align:right;">
+6900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Brian Hill
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+19.16
+</td>
+<td style="text-align:right;">
+2.42
+</td>
+<td style="text-align:right;">
+4800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Zach Ertz
+</td>
+<td style="text-align:left;">
+PHI
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+13.48
+</td>
+<td style="text-align:right;">
+0.67
+</td>
+<td style="text-align:right;">
+5000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DeAndre Hopkins
+</td>
+<td style="text-align:left;">
+HOU
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+20.87
+</td>
+<td style="text-align:right;">
+1.81
+</td>
+<td style="text-align:right;">
+8100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Boyd
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.29
+</td>
+<td style="text-align:right;">
+0.50
+</td>
+<td style="text-align:right;">
+5200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deebo Samuel
+</td>
+<td style="text-align:left;">
+SFO
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+16.71
+</td>
+<td style="text-align:right;">
+2.25
+</td>
+<td style="text-align:right;">
+4000
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+9981
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+159.72
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+13.52
+</td>
+<td style="text-align:left;">
+Cardinals
+</td>
+<td style="text-align:left;">
+ARI
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+8.10
+</td>
+<td style="text-align:right;">
+1.42
+</td>
+<td style="text-align:right;">
+1500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dak Prescott
+</td>
+<td style="text-align:left;">
+DAL
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+22.40
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:right;">
+6700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Alvin Kamara
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+22.19
+</td>
+<td style="text-align:right;">
+1.11
+</td>
+<td style="text-align:right;">
+7400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tevin Coleman
+</td>
+<td style="text-align:left;">
+SFO
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+17.04
+</td>
+<td style="text-align:right;">
+2.47
+</td>
+<td style="text-align:right;">
+6100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Darren Waller
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+20.06
+</td>
+<td style="text-align:right;">
+2.73
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Julio Jones
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+24.11
+</td>
+<td style="text-align:right;">
+1.80
+</td>
+<td style="text-align:right;">
+7500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Calvin Ridley
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+16.61
+</td>
+<td style="text-align:right;">
+1.26
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tyler Boyd
+</td>
+<td style="text-align:left;">
+CIN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.99
+</td>
+<td style="text-align:right;">
+0.50
+</td>
+<td style="text-align:right;">
+5200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dede Westbrook
+</td>
+<td style="text-align:left;">
+JAC
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.22
+</td>
+<td style="text-align:right;">
+1.68
+</td>
+<td style="text-align:right;">
+4500
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+9574
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+161.18
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+13.69
+</td>
+<td style="text-align:left;">
+Cardinals
+</td>
+<td style="text-align:left;">
+ARI
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+8.19
+</td>
+<td style="text-align:right;">
+1.42
+</td>
+<td style="text-align:right;">
+1500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dak Prescott
+</td>
+<td style="text-align:left;">
+DAL
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+22.66
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:right;">
+6700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Alvin Kamara
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+22.18
+</td>
+<td style="text-align:right;">
+1.11
+</td>
+<td style="text-align:right;">
+7400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Josh Jacobs
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+23.17
+</td>
+<td style="text-align:right;">
+2.50
+</td>
+<td style="text-align:right;">
+6900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Zach Ertz
+</td>
+<td style="text-align:left;">
+PHI
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+13.80
+</td>
+<td style="text-align:right;">
+0.67
+</td>
+<td style="text-align:right;">
+5000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Eric Ebron
+</td>
+<td style="text-align:left;">
+IND
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+11.60
+</td>
+<td style="text-align:right;">
+1.64
+</td>
+<td style="text-align:right;">
+3600
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Julio Jones
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+21.46
+</td>
+<td style="text-align:right;">
+1.80
+</td>
+<td style="text-align:right;">
+7500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Mike Evans
+</td>
+<td style="text-align:left;">
+TBB
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+21.81
+</td>
+<td style="text-align:right;">
+1.75
+</td>
+<td style="text-align:right;">
+7400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deebo Samuel
+</td>
+<td style="text-align:left;">
+SFO
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+16.30
+</td>
+<td style="text-align:right;">
+2.25
+</td>
+<td style="text-align:right;">
+4000
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+3623
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+169.36
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+14.81
+</td>
+<td style="text-align:left;">
+Saints
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+12.00
+</td>
+<td style="text-align:right;">
+1.80
+</td>
+<td style="text-align:right;">
+2900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Kyle Allen
+</td>
+<td style="text-align:left;">
+CAR
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+18.43
+</td>
+<td style="text-align:right;">
+0.67
+</td>
+<td style="text-align:right;">
+5300
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dalvin Cook
+</td>
+<td style="text-align:left;">
+MIN
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+28.92
+</td>
+<td style="text-align:right;">
+2.14
+</td>
+<td style="text-align:right;">
+8900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Alvin Kamara
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+22.88
+</td>
+<td style="text-align:right;">
+1.11
+</td>
+<td style="text-align:right;">
+7400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Miles Sanders
+</td>
+<td style="text-align:left;">
+PHI
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+17.92
+</td>
+<td style="text-align:right;">
+2.58
+</td>
+<td style="text-align:right;">
+4100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Eric Ebron
+</td>
+<td style="text-align:left;">
+IND
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+11.22
+</td>
+<td style="text-align:right;">
+1.64
+</td>
+<td style="text-align:right;">
+3600
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Julio Jones
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+22.15
+</td>
+<td style="text-align:right;">
+1.80
+</td>
+<td style="text-align:right;">
+7500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Courtland Sutton
+</td>
+<td style="text-align:left;">
+DEN
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+16.84
+</td>
+<td style="text-align:right;">
+0.82
+</td>
+<td style="text-align:right;">
+6000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deebo Samuel
+</td>
+<td style="text-align:left;">
+SFO
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+19.00
+</td>
+<td style="text-align:right;">
+2.25
+</td>
+<td style="text-align:right;">
+4000
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+3825
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+170.96
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+16.47
+</td>
+<td style="text-align:left;">
+Saints
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+12.05
+</td>
+<td style="text-align:right;">
+1.80
+</td>
+<td style="text-align:right;">
+2900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dak Prescott
+</td>
+<td style="text-align:left;">
+DAL
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+23.40
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:right;">
+6700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Josh Jacobs
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+26.01
+</td>
+<td style="text-align:right;">
+2.50
+</td>
+<td style="text-align:right;">
+6900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Brian Hill
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+18.70
+</td>
+<td style="text-align:right;">
+2.42
+</td>
+<td style="text-align:right;">
+4800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Mark Andrews
+</td>
+<td style="text-align:left;">
+BAL
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+18.37
+</td>
+<td style="text-align:right;">
+1.83
+</td>
+<td style="text-align:right;">
+6100
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Eric Ebron
+</td>
+<td style="text-align:left;">
+IND
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+13.84
+</td>
+<td style="text-align:right;">
+1.64
+</td>
+<td style="text-align:right;">
+3600
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Michael Thomas
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+28.60
+</td>
+<td style="text-align:right;">
+1.80
+</td>
+<td style="text-align:right;">
+9900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Dede Westbrook
+</td>
+<td style="text-align:left;">
+JAC
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.53
+</td>
+<td style="text-align:right;">
+1.68
+</td>
+<td style="text-align:right;">
+4500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deebo Samuel
+</td>
+<td style="text-align:left;">
+SFO
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+15.46
+</td>
+<td style="text-align:right;">
+2.25
+</td>
+<td style="text-align:right;">
+4000
+</td>
+</tr>
+<tr>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+9792
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+172.38
+</td>
+<td style="text-align:right;font-weight: bold;vertical-align: top !important;" rowspan="9">
+19.61
+</td>
+<td style="text-align:left;">
+Saints
+</td>
+<td style="text-align:left;">
+NOS
+</td>
+<td style="text-align:left;">
+DST
+</td>
+<td style="text-align:right;">
+11.71
+</td>
+<td style="text-align:right;">
+1.80
+</td>
+<td style="text-align:right;">
+2900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Lamar Jackson
+</td>
+<td style="text-align:left;">
+BAL
+</td>
+<td style="text-align:left;">
+QB
+</td>
+<td style="text-align:right;">
+26.02
+</td>
+<td style="text-align:right;">
+1.58
+</td>
+<td style="text-align:right;">
+7700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Le’Veon Bell
+</td>
+<td style="text-align:left;">
+NYJ
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+23.41
+</td>
+<td style="text-align:right;">
+2.27
+</td>
+<td style="text-align:right;">
+7200
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Josh Jacobs
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+23.08
+</td>
+<td style="text-align:right;">
+2.50
+</td>
+<td style="text-align:right;">
+6900
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Brian Hill
+</td>
+<td style="text-align:left;">
+ATL
+</td>
+<td style="text-align:left;">
+RB
+</td>
+<td style="text-align:right;">
+18.47
+</td>
+<td style="text-align:right;">
+2.42
+</td>
+<td style="text-align:right;">
+4800
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Darren Waller
+</td>
+<td style="text-align:left;">
+OAK
+</td>
+<td style="text-align:left;">
+TE
+</td>
+<td style="text-align:right;">
+24.38
+</td>
+<td style="text-align:right;">
+2.73
+</td>
+<td style="text-align:right;">
+5500
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Amari Cooper
+</td>
+<td style="text-align:left;">
+DAL
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+23.06
+</td>
+<td style="text-align:right;">
+2.68
+</td>
+<td style="text-align:right;">
+7700
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Deebo Samuel
+</td>
+<td style="text-align:left;">
+SFO
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+14.16
+</td>
+<td style="text-align:right;">
+2.25
+</td>
+<td style="text-align:right;">
+4000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Kendrick Bourne
+</td>
+<td style="text-align:left;">
+SFO
+</td>
+<td style="text-align:left;">
+WR
+</td>
+<td style="text-align:right;">
+8.09
+</td>
+<td style="text-align:right;">
+1.39
+</td>
+<td style="text-align:right;">
+3000
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Week 11 optimal lineups can be found <a href="https://drive.google.com/open?id=1Yfb3k3sfsZRbnD77kELKhhMFqoZ27HcD">here</a></p>
+</div>
