@@ -33,7 +33,7 @@ ignoreFiles = ["\\.Rmd$", "\\.Rmarkdown$", "_files$", "_cache$"]
 
 [author]
   name = "Aaron Miles"
-  bio = "I'm a data scientist who works at the Columbus Collaboratory, and an avid R user. \n\n My interests include sports (playing, watching, and fantasy), politics, finance, and that'll be the focus of what I write here. \n\n I live in Columbus, OH with my wife, two sons, dog, and rabbit"
+  bio = "I'm a free agent data scientist, and an avid R user. \n\n My interests include sports (playing, watching, and fantasy), politics, finance, and that'll be the focus of what I write here. \n\n I live in San Diego, CA with my wife, two sons, and dog"
   job = "Data Scientist"
   location = "Columbus, Ohio"
   # Your Gravatar email. Overwrite `author.picture` everywhere in the blog
