@@ -1,0 +1,502 @@
+---
+title: 'Calling NeuralProphet from R: Adventures in Reticulate'
+author: Aaron Miles
+date: '2020-12-03'
+slug: calling-neuralprophet-from-r-adventures-in-reticulate.en-us
+categories:
+  - Python
+  - Forecasting
+  - Time Series
+  - Torch
+  - Deep Learning
+tags:
+  - deep learning
+  - forecasting
+  - facebook
+  - torch
+keywords:
+  - tech
+---
+
+<script src="/rmarkdown-libs/header-attrs/header-attrs.js"></script>
+<link href="/rmarkdown-libs/anchor-sections/anchor-sections.css" rel="stylesheet" />
+<script src="/rmarkdown-libs/anchor-sections/anchor-sections.js"></script>
+
+
+<p>Recently I saw that Facebook released <a href="https://ieeexplore.ieee.org/document/8986377">Neural Prophet</a>, a new forecasting package similar to <a href="https://facebook.github.io/prophet/">Prophet</a>, but built on top of Torch. Prophet is one of my favorite forecasting packages, given the ability to decompose forecasts, add in events and holidays, and take advantage of business user domain knowledge. Naturally, I was excited about hearing this new version, and on top of torch of all things! The package itself is early in development, so there’s obviously no R port yet. I saw this as an opportunity to take <a href="https://rstudio.github.io/reticulate/">reticulate</a> out for a spin.</p>
+<p>It was super easy!</p>
+<p>Just a few years ago, using cutting edge python packages in R would have been a pipe dream, but given the work that has gone into both packages, it was incredibly simple for an individual developer like myself.</p>
+<p>What I was to do in this post is walk through a simple example with it in order to give a refresher for anyone new to reticulate, call out some of the features that make reticulate especially easy, and show off the forecasting ability of neural prophet.</p>
+<div id="setup" class="section level2">
+<h2>Setup</h2>
+<p>Before jumping into R, you need to make sure you have a python environment with the proper packages installed. In my case, I created a conda environment called <code>neural_prophet</code>. We’ll keep it simple and just install the R packages <code>reticulate</code> and <code>tidyverse</code></p>
+<p>Loading a python package is simple, just use the <code>import</code> command and assign it to an object</p>
+<p>Again, for sake of simplicity, we’ll use an example dataset from the package, a monthly retail sales dataset that spans 1992-2016.</p>
+</div>
+<div id="model" class="section level2">
+<h2>Model</h2>
+<p>Now we’ll initialize the model with the <code>NeuralProphet()</code> function from the <code>neuralprophet</code> package we imported above, and fit the model to the training dataset.</p>
+<p>What’s understated and really cool here is the automatic conversion between an R tibble/data frame and a pandas data frame. Zero work on our part.</p>
+</div>
+<div id="predict" class="section level2">
+<h2>Predict</h2>
+<p>One awesome feature from <code>prophet</code> that carries over to <code>neuralprophet</code> is the <code>make_future_dataframe</code> function, where you can specify how many periods you want to go in the future, and it’ll automatically create a dataframe that the forecasting model can predict off of.</p>
+<style>html {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
+}
+
+#aggsnboopm .gt_table {
+  display: table;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#aggsnboopm .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#aggsnboopm .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#aggsnboopm .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 0;
+  padding-bottom: 4px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#aggsnboopm .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#aggsnboopm .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#aggsnboopm .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#aggsnboopm .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#aggsnboopm .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#aggsnboopm .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#aggsnboopm .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#aggsnboopm .gt_group_heading {
+  padding: 8px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#aggsnboopm .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#aggsnboopm .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#aggsnboopm .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#aggsnboopm .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#aggsnboopm .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 12px;
+}
+
+#aggsnboopm .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#aggsnboopm .gt_first_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+}
+
+#aggsnboopm .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#aggsnboopm .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#aggsnboopm .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#aggsnboopm .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#aggsnboopm .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#aggsnboopm .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding: 4px;
+}
+
+#aggsnboopm .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#aggsnboopm .gt_sourcenote {
+  font-size: 90%;
+  padding: 4px;
+}
+
+#aggsnboopm .gt_left {
+  text-align: left;
+}
+
+#aggsnboopm .gt_center {
+  text-align: center;
+}
+
+#aggsnboopm .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#aggsnboopm .gt_font_normal {
+  font-weight: normal;
+}
+
+#aggsnboopm .gt_font_bold {
+  font-weight: bold;
+}
+
+#aggsnboopm .gt_font_italic {
+  font-style: italic;
+}
+
+#aggsnboopm .gt_super {
+  font-size: 65%;
+}
+
+#aggsnboopm .gt_footnote_marks {
+  font-style: italic;
+  font-size: 65%;
+}
+</style>
+<div id="aggsnboopm" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;"><table class="gt_table">
+  
+  <thead class="gt_col_headings">
+    <tr>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">ds</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_center" rowspan="1" colspan="1">y</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">yhat1</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_center" rowspan="1" colspan="1">residual1</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">trend</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">season_yearly</th>
+    </tr>
+  </thead>
+  <tbody class="gt_table_body">
+    <tr>
+      <td class="gt_row gt_left">2016-05-30 17:00:00</td>
+      <td class="gt_row gt_center"></td>
+      <td class="gt_row gt_right">456699.4</td>
+      <td class="gt_row gt_center">NaN</td>
+      <td class="gt_row gt_right">449847.4</td>
+      <td class="gt_row gt_right">6851.9561</td>
+    </tr>
+    <tr>
+      <td class="gt_row gt_left">2016-06-29 17:00:00</td>
+      <td class="gt_row gt_center"></td>
+      <td class="gt_row gt_right">453226.5</td>
+      <td class="gt_row gt_center">NaN</td>
+      <td class="gt_row gt_right">450816.4</td>
+      <td class="gt_row gt_right">2410.0474</td>
+    </tr>
+    <tr>
+      <td class="gt_row gt_left">2016-07-30 17:00:00</td>
+      <td class="gt_row gt_center"></td>
+      <td class="gt_row gt_right">465718.1</td>
+      <td class="gt_row gt_center">NaN</td>
+      <td class="gt_row gt_right">451817.8</td>
+      <td class="gt_row gt_right">13900.3096</td>
+    </tr>
+    <tr>
+      <td class="gt_row gt_left">2016-08-30 17:00:00</td>
+      <td class="gt_row gt_center"></td>
+      <td class="gt_row gt_right">435408.9</td>
+      <td class="gt_row gt_center">NaN</td>
+      <td class="gt_row gt_right">452819.1</td>
+      <td class="gt_row gt_right">-17410.1816</td>
+    </tr>
+    <tr>
+      <td class="gt_row gt_left">2016-09-29 17:00:00</td>
+      <td class="gt_row gt_center"></td>
+      <td class="gt_row gt_right">452465.1</td>
+      <td class="gt_row gt_center">NaN</td>
+      <td class="gt_row gt_right">453788.2</td>
+      <td class="gt_row gt_right">-1323.0161</td>
+    </tr>
+    <tr>
+      <td class="gt_row gt_left">2016-10-30 17:00:00</td>
+      <td class="gt_row gt_center"></td>
+      <td class="gt_row gt_right">449587.3</td>
+      <td class="gt_row gt_center">NaN</td>
+      <td class="gt_row gt_right">454789.4</td>
+      <td class="gt_row gt_right">-5202.1797</td>
+    </tr>
+    <tr>
+      <td class="gt_row gt_left">2016-11-29 16:00:00</td>
+      <td class="gt_row gt_center"></td>
+      <td class="gt_row gt_right">508702.4</td>
+      <td class="gt_row gt_center">NaN</td>
+      <td class="gt_row gt_right">455758.5</td>
+      <td class="gt_row gt_right">52943.9062</td>
+    </tr>
+    <tr>
+      <td class="gt_row gt_left">2016-12-30 16:00:00</td>
+      <td class="gt_row gt_center"></td>
+      <td class="gt_row gt_right">424294.4</td>
+      <td class="gt_row gt_center">NaN</td>
+      <td class="gt_row gt_right">456759.8</td>
+      <td class="gt_row gt_right">-32465.3730</td>
+    </tr>
+    <tr>
+      <td class="gt_row gt_left">2017-01-30 16:00:00</td>
+      <td class="gt_row gt_center"></td>
+      <td class="gt_row gt_right">424569.4</td>
+      <td class="gt_row gt_center">NaN</td>
+      <td class="gt_row gt_right">457761.2</td>
+      <td class="gt_row gt_right">-33191.7422</td>
+    </tr>
+    <tr>
+      <td class="gt_row gt_left">2017-02-27 16:00:00</td>
+      <td class="gt_row gt_center"></td>
+      <td class="gt_row gt_right">458540.3</td>
+      <td class="gt_row gt_center">NaN</td>
+      <td class="gt_row gt_right">458665.6</td>
+      <td class="gt_row gt_right">-125.3058</td>
+    </tr>
+    <tr>
+      <td class="gt_row gt_left">2017-03-30 17:00:00</td>
+      <td class="gt_row gt_center"></td>
+      <td class="gt_row gt_right">458074.8</td>
+      <td class="gt_row gt_center">NaN</td>
+      <td class="gt_row gt_right">459666.9</td>
+      <td class="gt_row gt_right">-1592.1603</td>
+    </tr>
+    <tr>
+      <td class="gt_row gt_left">2017-04-29 17:00:00</td>
+      <td class="gt_row gt_center"></td>
+      <td class="gt_row gt_right">472146.8</td>
+      <td class="gt_row gt_center">NaN</td>
+      <td class="gt_row gt_right">460636.0</td>
+      <td class="gt_row gt_right">11510.7402</td>
+    </tr>
+  </tbody>
+  
+  
+</table></div>
+<p>Obviously we’re predicting the future here, so we don’t have true y values to compare against, but we can see that if we wanted to evaluate our forecast on known data, prophet can easily do that.</p>
+<p>Again, to reiterate, it’s pretty sweet that I don’t have to worry about type conversions here, as reticulate automatically converts R data frames to pandas data frames.</p>
+<p>From here, we can make our plots and evaluation in R, like we would with any other forecast.</p>
+</div>
+<div id="summary" class="section level2">
+<h2>Summary</h2>
+<p>I know this post was pretty short, but I thought this was actually a pretty powerful example of the power of reticulate. At the time of writing, <code>neuralprophet</code> came out a few weeks ago, and I was able to get it up and working in R in a few minutes.</p>
+<p>It’s easy to think that state of the art Python libraries are out of R’s scope, at least until some generous soul creates an R package so us folk can use it. But that’s not the case! Obviously I hope me or some other kind soul gets the time to package this up and make it easier for R users to take advantage, but it’s important to know that if you know a little bit of Python, you can take advantage of these packages on day one.</p>
+<p>So don’t wait on the generosity of others, get in there and get your hands dirty and who knows, you might be the generous soul that makes state of the art data science available to the masses.</p>
+</div>

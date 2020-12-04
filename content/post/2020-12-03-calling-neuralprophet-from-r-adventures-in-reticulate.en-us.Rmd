@@ -1,0 +1,93 @@
+---
+title: 'Calling NeuralProphet from R: Adventures in Reticulate'
+author: Aaron Miles
+date: '2020-12-03'
+slug: calling-neuralprophet-from-r-adventures-in-reticulate.en-us
+categories:
+  - Python
+  - Forecasting
+  - Time Series
+  - Torch
+  - Deep Learning
+tags:
+  - deep learning
+  - forecasting
+  - facebook
+  - torch
+keywords:
+  - tech
+---
+
+
+Recently I saw that Facebook released [Neural Prophet](https://ieeexplore.ieee.org/document/8986377), a new forecasting package similar to [Prophet](https://facebook.github.io/prophet/), but built on top of Torch. Prophet is one of my favorite forecasting packages, given the ability to decompose forecasts, add in events and holidays, and take advantage of business user domain knowledge. Naturally, I was excited about hearing this new version, and on top of torch of all things! The package itself is early in development, so there's obviously no R port yet. I saw this as an opportunity to take [reticulate](https://rstudio.github.io/reticulate/) out for a spin. 
+
+It was super easy! 
+
+Just a few years ago, using cutting edge python packages in R would have been a pipe dream, but given the work that has gone into both packages, it was incredibly simple for an individual developer like myself. 
+
+What I was to do in this post is walk through a simple example with it in order to give a refresher for anyone new to reticulate, call out some of the features that make reticulate especially easy, and show off the forecasting ability of neural prophet.
+
+## Setup
+
+Before jumping into R, you need to make sure you have a python environment with the proper packages installed. In my case, I created a conda environment called `neural_prophet`. We'll keep it simple and just install the R packages `reticulate` and `tidyverse`
+
+Loading a python package is simple, just use the `import` command and assign it to  an object
+
+```{r echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+reticulate::use_condaenv("neural_prophet", required = TRUE)
+
+library(reticulate)
+library(tidyverse)
+library(gt)
+
+neuralprophet <- import('neuralprophet')
+``` 
+
+Again, for sake of simplicity, we'll use an example dataset from the package, a monthly retail sales dataset that spans 1992-2016.
+
+```{r echo=FALSE, error=FALSE, message=FALSE, warning=FALSE} 
+df = read_csv('https://raw.githubusercontent.com/ourownstory/neural_prophet/master/example_data/retail_sales.csv')
+```
+
+## Model
+
+Now we'll initialize the model with the `NeuralProphet()` function from the `neuralprophet` package we imported above, and fit the model to the training dataset.
+
+```{r echo=FALSE, error=FALSE, message=FALSE, warning=FALSE, results = 'hide'} 
+m <- neuralprophet$NeuralProphet()
+
+m$fit(df, freq = "M")
+``` 
+
+What's understated and really cool here is the automatic conversion between an R tibble/data frame and a pandas data frame. Zero work on our part.
+
+
+## Predict 
+
+One awesome feature from `prophet` that carries over to `neuralprophet` is the `make_future_dataframe` function, where you can specify how many periods you want to go in the future, and it'll automatically create a dataframe that the forecasting model can predict off of.
+
+```{r echo=FALSE, error=FALSE, message=FALSE, warning=FALSE} 
+
+future <- m$make_future_dataframe(df, periods = 12L)
+
+pred_df <- m$predict(future)
+
+pred_df %>% gt()
+
+``` 
+
+Obviously we're predicting the future here, so we don't have true y values to compare against, but we can see that if we wanted to evaluate our forecast on known data, prophet can easily do that.
+
+Again, to reiterate, it's pretty sweet that I don't have to worry about type conversions here, as reticulate automatically converts R data frames to pandas data frames. 
+
+From here, we can make our plots and evaluation in R, like we would with any other forecast.
+
+## Summary
+
+I know this post was pretty short, but I thought this was actually a pretty powerful example of the power of reticulate. At the time of writing, `neuralprophet` came out a few weeks ago, and I was able to get it up and working in R in a few minutes. 
+
+It's easy to think that state of the art Python libraries are out of R's scope, at least until some generous soul creates an R package so us folk can use it. But that's not the case! Obviously I hope me or some other kind soul gets the time to package this up and make it easier for R users to take advantage, but it's important to know that if you know a little bit of Python, you can take advantage of these packages on day one.
+
+So don't wait on the generosity of others, get in there and get your hands dirty and who knows, you might be the generous soul that makes state of the art data science available to the masses.
+
+
